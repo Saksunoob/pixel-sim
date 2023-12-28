@@ -64,43 +64,46 @@ fn main() {
         ),
     ];
 
-    let ruleset = Ruleset::new(vec![
+    let rules = vec![
         // Gravity
-        Rule {
-            condition: rules::Condition::Condition(ConditionType::Lt((IVec2::new(0, 1), IVec2::ZERO), "mass".to_string())),
-            result: vec![(IVec2::new(0, 1), Result::Clone(IVec2::ZERO)), (IVec2::ZERO, Result::Clone(IVec2::new(0, 1)))],
-            priority: Math::Minus(Box::new(Math::Tag(IVec2::ZERO, "mass".to_string())), Box::new(Math::Tag(IVec2::new(0, 1), "mass".to_string()))),
-        },
-        // Gravity diagonal right
-        Rule {
-            condition: rules::Condition::And(vec![
-                rules::Condition::Condition(ConditionType::Lt((IVec2::new(1, 0), IVec2::ZERO), "mass".to_string())), 
-                rules::Condition::Condition(ConditionType::Lte((IVec2::new(1, 1), (IVec2::new(1, 0))), "mass".to_string()))]),
-            result: vec![(IVec2::new(1, 1), Result::Clone(IVec2::ZERO)), (IVec2::ZERO, Result::Clone(IVec2::new(1, 1)))],
-            priority: Math::Div(Box::new(Math::Minus(Box::new(Math::Tag(IVec2::ZERO, "mass".to_string())), Box::new(Math::Tag(IVec2::new(1, 1), "mass".to_string())))), Box::new(Math::Value(TagValue::Float(1.4)))),
-        },
-        // Gravity diagonal left
-        Rule {
-            condition: rules::Condition::And(vec![
-                rules::Condition::Condition(ConditionType::Lt((IVec2::new(-1, 0), IVec2::ZERO), "mass".to_string())), 
-                rules::Condition::Condition(ConditionType::Lte((IVec2::new(-1, 1), (IVec2::new(-1, 0))), "mass".to_string()))]),
-            result: vec![(IVec2::new(-1, 1), Result::Clone(IVec2::ZERO)), (IVec2::ZERO, Result::Clone(IVec2::new(-1, 1)))],
-            priority: Math::Div(Box::new(Math::Minus(Box::new(Math::Tag(IVec2::ZERO, "mass".to_string())), Box::new(Math::Tag(IVec2::new(-1, 1), "mass".to_string())))), Box::new(Math::Value(TagValue::Float(1.4)))),
-        },
-        // Paper rain
-        Rule {
-            condition: rules::Condition::And(vec![rules::Condition::Condition(ConditionType::Is(IVec2::new(0, -1), "mass".to_string(), TagValue::None)), rules::Condition::Condition(ConditionType::Random(0.2))]),
-            result: vec![(IVec2::ZERO, Result::SetElement(Math::Value(TagValue::Element(hash("paper")))))],
-            priority: Math::Value(TagValue::Float(0.1)),
-        },
-        // Spark rain
-        Rule {
-            condition: rules::Condition::And(vec![rules::Condition::Condition(ConditionType::Is(IVec2::new(0, -1), "mass".to_string(), TagValue::None)), rules::Condition::Condition(ConditionType::Random(0.0001))]),
-            result: vec![(IVec2::ZERO, Result::SetElement(Math::Value(TagValue::Element(hash("spark")))))],
-            priority: Math::Value(TagValue::Float(0.1)),
-        },
+        RuleType::CompoundRule(vec![
+            // Down
+            RuleType::Rule {
+                condition: rules::Condition::Condition(ConditionType::Lt((IVec2::new(0, 1), IVec2::ZERO), "mass".to_string())),
+                result: vec![(IVec2::new(0, 1), Result::Clone(IVec2::ZERO)), (IVec2::ZERO, Result::Clone(IVec2::new(0, 1)))],
+                priority: Math::Minus(Box::new(Math::Tag(IVec2::ZERO, "mass".to_string())), Box::new(Math::Tag(IVec2::new(0, 1), "mass".to_string()))),
+            },
+            // Diagonal right
+            RuleType::Rule {
+                condition: rules::Condition::And(vec![
+                    rules::Condition::Condition(ConditionType::Lt((IVec2::new(1, 0), IVec2::ZERO), "mass".to_string())), 
+                    rules::Condition::Condition(ConditionType::Lte((IVec2::new(1, 1), (IVec2::new(1, 0))), "mass".to_string()))]),
+                result: vec![(IVec2::new(1, 1), Result::Clone(IVec2::ZERO)), (IVec2::ZERO, Result::Clone(IVec2::new(1, 1)))],
+                priority: Math::Div(Box::new(Math::Minus(Box::new(Math::Tag(IVec2::ZERO, "mass".to_string())), Box::new(Math::Tag(IVec2::new(1, 1), "mass".to_string())))), Box::new(Math::Value(TagValue::Float(0.1)))),
+            },
+            // Diagonal left
+            RuleType::Rule {
+                condition: rules::Condition::And(vec![
+                    rules::Condition::Condition(ConditionType::Lt((IVec2::new(-1, 0), IVec2::ZERO), "mass".to_string())), 
+                    rules::Condition::Condition(ConditionType::Lte((IVec2::new(-1, 1), (IVec2::new(-1, 0))), "mass".to_string()))]),
+                result: vec![(IVec2::new(-1, 1), Result::Clone(IVec2::ZERO)), (IVec2::ZERO, Result::Clone(IVec2::new(-1, 1)))],
+                priority: Math::Div(Box::new(Math::Minus(Box::new(Math::Tag(IVec2::ZERO, "mass".to_string())), Box::new(Math::Tag(IVec2::new(-1, 1), "mass".to_string())))), Box::new(Math::Value(TagValue::Float(0.1)))),
+            },
+        ]),
+        RuleType::CompoundRule(vec![
+            RuleType::Rule { 
+                condition: rules::Condition::And(vec![rules::Condition::Condition(ConditionType::Is(IVec2::new(0, -1), "mass".to_string(), TagValue::None)), rules::Condition::Condition(ConditionType::Random(0.2)), rules::Condition::Condition(ConditionType::Input(57))]),
+                result: vec![(IVec2::ZERO, Result::SetElement(Math::Value(TagValue::Element(hash("paper")))))],
+                priority: Math::Value(TagValue::Float(0.1))
+            },
+            RuleType::Rule {
+                condition: rules::Condition::And(vec![rules::Condition::Condition(ConditionType::Is(IVec2::new(0, -1), "mass".to_string(), TagValue::None)), rules::Condition::Condition(ConditionType::Random(0.0001)), rules::Condition::Condition(ConditionType::Input(57))]),
+                result: vec![(IVec2::ZERO, Result::SetElement(Math::Value(TagValue::Element(hash("spark")))))],
+                priority: Math::Value(TagValue::Float(0.1)),
+            }
+        ]),
         // Ignition
-        Rule {
+        RuleType::Rule {
             condition: rules::Condition::And(vec![
                 rules::Condition::Condition(ConditionType::Is(IVec2::ZERO, "flammable".to_string(), TagValue::Empty)),
                 rules::Condition::Or(vec![
@@ -114,18 +117,20 @@ fn main() {
             priority: Math::Value(TagValue::Float(1.)),
         },
         // Burning
-        Rule {
+        RuleType::Rule {
             condition: rules::Condition::Condition(ConditionType::Is(IVec2::ZERO, "burning".to_string(), TagValue::Empty)),
             result: vec![(IVec2::ZERO, Result::ChangeTags(vec![("burn_time".to_string(), Math::Minus(Box::new(Math::Tag(IVec2::ZERO, "burn_time".to_string())), Box::new(Math::Value(TagValue::Integer(1)))))]))],
             priority: Math::Value(TagValue::Float(0.1)),
         },
         // Burn out
-        Rule {
+        RuleType::Rule {
             condition: rules::Condition::Condition(ConditionType::Is(IVec2::ZERO, "burn_time".to_string(), TagValue::Integer(0))),
             result: vec![(IVec2::ZERO, Result::SetElement(Math::Tag(IVec2::ZERO, "on_burn_out".to_string())))],
             priority: Math::Value(TagValue::Float(0.1)),
         }
-    ]);
+    ];
+
+    let ruleset = Ruleset::new(rules);
 
     App::new()
         .add_plugins((

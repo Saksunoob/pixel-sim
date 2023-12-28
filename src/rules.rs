@@ -8,14 +8,14 @@ use crate::world::{TagValue, Elements, TagSpace};
 
 #[derive(Clone)]
 pub struct Ruleset {
-    rules: Vec<Rule>
+    rules: Vec<RuleType>
 }
 
 impl Ruleset {
-    pub fn new(rules: Vec<Rule>) -> Self {
+    pub fn new(rules: Vec<RuleType>) -> Self {
         Self {rules}
     }
-    pub fn add_rule(&mut self, rule: Rule) {
+    pub fn add_rule(&mut self, rule: RuleType) {
         self.rules.push(rule);
     }
     pub fn execute_rules(
@@ -33,7 +33,7 @@ impl Ruleset {
 
     pub fn execute_rule(
         &self,
-        rule: &Rule,
+        rule: &RuleType,
         tiles: &mut HashMap<String, TagSpace>,
         world_size: i32,
         elements: &Elements,
@@ -55,7 +55,7 @@ impl Ruleset {
 
         let affected: Vec<RwLock<bool>> = (0..(world_size * world_size)).into_par_iter().map(|_| RwLock::from(false)).collect();
 
-        let actions: HashMap<usize, ActionDataType> = actions.into_par_iter().filter_map(|action| {
+        let actions: HashMap<usize, ActionDataType> = actions.into_iter().filter_map(|action| { // Find out a way to make this parrallel while preserving priority
             if action.get_affected().iter().any(|index| *affected[get_index(index, world_size)].read().unwrap()) {
                 return None;
             }
@@ -200,31 +200,41 @@ fn get_index(pos: &IVec2, world_size: i32) -> usize {
 }
 
 #[derive(Clone)]
-pub struct Rule {
-    pub condition: Condition,
-    pub result: Vec<(IVec2, Result)>,
-    pub priority: Math
+pub enum RuleType {
+    Rule {
+        condition: Condition,
+        result: Vec<(IVec2, Result)>,
+        priority: Math
+    },
+    CompoundRule(Vec<RuleType>) // bool sets wheather affected pixels are shared or not
 }
-impl Rule {
-    pub fn execute(&self, 
+impl RuleType {
+    pub fn execute(
+        &self, 
         pos: IVec2,
         tiles: &HashMap<String, TagSpace>,
         world_size: i32,
         elements: &Elements,
-        _: u128,
+        frame: u128,
         input: &Res<Input<ScanCode>>
-    ) -> Option<Action> {
-
-        if self.condition.evaluate(pos, tiles, world_size, input) {
-            return Some(Action::new(self.result.iter().map(|(rel_pos, result)| {
-                (pos.wrapping_add(*rel_pos), match result {
-                    Result::Clone(from) => ActionDataType::Clone(pos.wrapping_add(*from)),
-                    Result::ChangeTags(tags) => ActionDataType::ReplaceTags(tags.iter().map(|(tag, math)| (tag.to_string(), math.evaluate(pos, tiles, world_size))).collect()),
-                    Result::SetTags(tags) => ActionDataType::ReplaceTags(tags.iter().cloned().collect()),
-                    Result::SetElement(el) => ActionDataType::ReplaceAllTags(elements.get_el(el.evaluate(pos, tiles, world_size)).iter().cloned().collect()),
-                })
-            }).collect(), self.priority.evaluate(pos, tiles, world_size).as_float()));
+    ) -> Vec<Action> {
+        match self {
+            RuleType::Rule{condition, result, priority} => {
+                if condition.evaluate(pos, tiles, world_size, input) {
+                    return vec![Action::new(result.iter().map(|(rel_pos, result)| {
+                        (pos.wrapping_add(*rel_pos), match result {
+                            Result::Clone(from) => ActionDataType::Clone(pos.wrapping_add(*from)),
+                            Result::ChangeTags(tags) => ActionDataType::ReplaceTags(tags.iter().map(|(tag, math)| (tag.to_string(), math.evaluate(pos, tiles, world_size))).collect()),
+                            Result::SetTags(tags) => ActionDataType::ReplaceTags(tags.iter().cloned().collect()),
+                            Result::SetElement(el) => ActionDataType::ReplaceAllTags(elements.get_el(el.evaluate(pos, tiles, world_size)).iter().cloned().collect()),
+                        })
+                    }).collect(), priority.evaluate(pos, tiles, world_size).as_float())];
+                }
+                Vec::new()
+            },
+            RuleType::CompoundRule(rules) => {
+                rules.iter().flat_map(|rule| rule.execute(pos, tiles, world_size, elements, frame, input)).collect()
+            }
         }
-        None
     }
 }
