@@ -4,7 +4,7 @@ use bevy::{math::IVec2, ecs::system::Res, input::{keyboard::ScanCode, Input}};
 use rand::random;
 use rayon::prelude::*;
 
-use crate::world::{TagValue, Elements, TagSpace};
+use crate::{world::Elements, tags::{TagSpace, TagValue}};
 
 #[derive(Clone)]
 pub struct Ruleset {

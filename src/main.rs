@@ -13,11 +13,12 @@ use rules::*;
 use world::WorldPlugin;
 
 use crate::camera::CameraPlugin;
-use crate::world::TagValue;
+use crate::tags::TagValue;
 
 mod camera;
 mod world;
 mod rules;
+mod tags;
 
 fn color_to_int(r: u8, g: u8, b: u8, a: u8) -> i64 {
     return ((r as i64) << 24) + ((g as i64) << 16) + ((b as i64) << 8) + (a as i64);
