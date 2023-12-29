@@ -1,0 +1,39 @@
+[
+    {
+        "name":"air",
+        "tags":{
+            "color": "#000000",
+            "mass": 0.1
+        }
+    },
+    {
+        "name":"paper",
+        "tags":{
+            "color": "#FFFFFF",
+            "mass": 1.0,
+            "flammable": null,
+            "burn_time": 5,
+            "on_burn_out": "flame"
+        }
+    },
+    {
+        "name":"spark",
+        "tags": {
+            "color":"#FF8C00",
+            "mass":1.0,
+            "burning":null,
+            "burn_time":250,
+            "on_burn_out":"air"
+        }
+    },
+    {
+        "name":"flame",
+        "tags": {
+            "color": "#FFFF00",
+            "mass": 0.05,
+            "burning":null,
+            "burn_time":10,
+            "on_burn_out":"air"
+        }
+    }
+]

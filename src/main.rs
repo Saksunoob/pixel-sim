@@ -1,5 +1,6 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::path::Path;
 
 use bevy::{
     prelude::*,
@@ -9,61 +10,25 @@ use bevy::{
         RenderPlugin,
     },
 };
+use file_parser::load_element;
 use rules::*;
-use world::WorldPlugin;
+use world::{WorldPlugin, Element};
 
 use crate::camera::CameraPlugin;
+use crate::file_parser::load_elements;
 use crate::tags::TagValue;
 
 mod camera;
 mod world;
 mod rules;
 mod tags;
-
-fn color_to_int(r: u8, g: u8, b: u8, a: u8) -> i64 {
-    return ((r as i64) << 24) + ((g as i64) << 16) + ((b as i64) << 8) + (a as i64);
-}
+mod file_parser;
 
 fn main() {
-    let elements = vec![
-        (
-            "air",
-            vec![
-                ("color", TagValue::Integer(color_to_int(0, 0, 0, 255))),
-                ("mass", TagValue::Float(0.1)),
-            ],
-        ),
-        (
-            "paper",
-            vec![
-                ("color", TagValue::Integer(color_to_int(255, 255, 255, 255))),
-                ("mass", TagValue::Float(1.)),
-                ("flammable", TagValue::Empty),
-                ("burn_time", TagValue::Integer(5)),
-                ("on_burn_out", TagValue::Element(hash("flame"))),
-            ],
-        ),
-        (
-            "spark",
-            vec![
-                ("color", TagValue::Integer(color_to_int(255, 140, 0, 255))),
-                ("mass", TagValue::Float(1.)),
-                ("burning", TagValue::Empty),
-                ("burn_time", TagValue::Integer(250)),
-                ("on_burn_out", TagValue::Element(hash("air"))),
-            ],
-        ),
-        (
-            "flame",
-            vec![
-                ("color", TagValue::Integer(color_to_int(255, 255, 0, 255))),
-                ("mass", TagValue::Float(0.05)),
-                ("burning", TagValue::Empty),
-                ("burn_time", TagValue::Integer(10)),
-                ("on_burn_out", TagValue::Element(hash("air"))),
-            ],
-        ),
-    ];
+    let air = load_element(Path::new("air.json"));
+    println!("{:?}", air);
+
+    let elements = load_elements(Path::new("elements.json")).unwrap();
 
     let rules = vec![
         // Gravity

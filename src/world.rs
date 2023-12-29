@@ -6,7 +6,7 @@ use bevy::{
     app::Plugin,
     asset::{AssetServer, Handle},
     ecs::system::{Commands, Res, Resource},
-    math::{IVec2, Vec2},
+    math::Vec2,
     render::{
         color::Color,
         render_resource::{Extent3d, TextureDimension, TextureFormat},
@@ -16,7 +16,9 @@ use bevy::{
     transform::components::Transform,
 };
 use rayon::prelude::*;
+use serde::Serialize;
 use std::collections::HashMap;
+use serde::Deserialize;
 
 pub struct WorldPlugin(pub World);
 
@@ -36,7 +38,7 @@ pub struct World {
 }
 
 impl World {
-    pub fn new(size: usize, elements: Vec<(&str, Vec<(&str, TagValue)>)>, ruleset: Ruleset) -> Self {
+    pub fn new(size: usize, elements: Vec<Element>, ruleset: Ruleset) -> Self {
         let elements = Elements::new(elements);
 
         let mut bits = HashMap::new();
@@ -74,10 +76,10 @@ impl World {
             .flat_map(|index| {
                 if let TagValue::Integer(value) = colors.get_tag_at_index(index) {
                     [
-                        (value >> 24) as u8,
                         (value >> 16) as u8,
                         (value >> 8) as u8,
                         value as u8,
+                        255
                     ]
                 } else {
                     Color::PURPLE.as_rgba_u8()
@@ -166,21 +168,27 @@ fn update(
     }
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Element {
+    pub name: String,
+    pub tags: HashMap<String, TagValue>
+}
+
 #[derive(Clone)]
 pub struct Elements {
     elements: HashMap<u64, Vec<(String, TagValue)>>,
     default: u64,
 }
 impl Elements {
-    pub fn new(elements: Vec<(&str, Vec<(&str, TagValue)>)>) -> Self {
-        let default = hash(elements[0].0);
+    pub fn new(elements: Vec<Element>) -> Self {
+        let default = hash(&elements[0].name);
         Self {
             elements: elements
                 .into_iter()
-                .map(|(id, tags)| {
+                .map(|element| {
                     (
-                        hash(id),
-                        tags.into_iter()
+                        hash(&element.name),
+                        element.tags.into_iter()
                             .map(|(tag, value)| (tag.to_string(), value))
                             .collect(),
                     )

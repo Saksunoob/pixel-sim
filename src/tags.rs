@@ -1,8 +1,11 @@
 use std::ops::{Div, Mul, Sub, Add};
 use rayon::prelude::*;
 use bevy::math::IVec2;
+use serde::{Deserialize, Serialize, Deserializer};
 
-#[derive(Copy, Clone)]
+use crate::hash;
+
+#[derive(Debug, Copy, Clone, Serialize)]
 pub enum TagValue {
     None,
     Empty,
@@ -18,13 +21,7 @@ impl TagValue {
             TagValue::Empty => 0.,
             TagValue::Integer(i) => *i as f64,
             TagValue::Float(f) => *f,
-            TagValue::Boolean(v) => {
-                if *v {
-                    1.
-                } else {
-                    0.
-                }
-            }
+            TagValue::Boolean(v) => *v as u64 as f64,
             TagValue::Element(el) => *el as f64,
         }
     }
@@ -139,6 +136,71 @@ impl Div for TagValue {
             (TagValue::Element(_), _) | (_, TagValue::Element(_)) => panic!("Cannot do arithmatic with Tag value of type Element"),
         }
     }
+}
+impl<'de> Deserialize<'de> for TagValue {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct TagValueVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for TagValueVisitor {
+            type Value = TagValue;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a valid TagValue variant")
+            }
+
+            fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+                where
+                    E: serde::de::Error, {
+                return Ok(TagValue::Integer(v));
+            }
+            fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+                where
+                    E: serde::de::Error, {
+                self.visit_i64(v as i64)
+            }
+            fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
+                where
+                    E: serde::de::Error, {
+                Ok(TagValue::Float(v))
+            }
+            fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
+                where
+                    E: serde::de::Error, {
+                Ok(TagValue::Boolean(v))
+            }
+
+            // Deserialize based on the type of the value
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                if value.starts_with('#') {
+                    let r = u8::from_str_radix(&value[1..3], 16);
+                    let g = u8::from_str_radix(&value[3..5], 16);
+                    let b = u8::from_str_radix(&value[5..7], 16);
+                    if let (Ok(r), Ok(g), Ok(b)) = (r, g, b) {
+                        return Ok(TagValue::Integer(color_to_int(r, g, b)))
+                    } else {
+                        eprintln!("invalid color tag {value}")
+                    }
+                }
+                Ok(TagValue::Element(hash(value)))
+            }
+            fn visit_unit<E>(self) -> Result<Self::Value, E>
+                where
+                    E: serde::de::Error, {
+                Ok(TagValue::Empty)
+            }
+        }
+        deserializer.deserialize_any(TagValueVisitor)
+    }
+}
+
+const fn color_to_int(r: u8, g: u8, b: u8) -> i64 {
+    return ((r as i64) << 16) + ((g as i64) << 8) + (b as i64);
 }
 
 #[derive(Clone)]

@@ -2708,6 +2708,8 @@ dependencies = [
  "bevy",
  "rand",
  "rayon",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
