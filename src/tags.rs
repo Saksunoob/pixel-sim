@@ -209,9 +209,6 @@ pub struct TagSpace {
     world_size: i32
 }
 impl TagSpace {
-    pub fn new(world_size: i32) -> Self {
-        Self { array: vec![TagValue::None; (world_size*world_size) as usize], world_size }
-    }
     pub fn new_with_value(value: TagValue, world_size: i32) -> Self {
         Self { array: vec![value; (world_size*world_size) as usize], world_size }
     }

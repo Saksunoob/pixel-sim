@@ -3,6 +3,8 @@ use std::{collections::HashMap, sync::RwLock};
 use bevy::{math::IVec2, ecs::system::Res, input::{keyboard::ScanCode, Input}};
 use rand::random;
 use rayon::prelude::*;
+use serde::Deserialize;
+use serde_json::Value;
 
 use crate::{world::Elements, tags::{TagSpace, TagValue}};
 
@@ -14,9 +16,6 @@ pub struct Ruleset {
 impl Ruleset {
     pub fn new(rules: Vec<RuleType>) -> Self {
         Self {rules}
-    }
-    pub fn add_rule(&mut self, rule: RuleType) {
-        self.rules.push(rule);
     }
     pub fn execute_rules(
         &self, 
@@ -111,7 +110,7 @@ impl Action {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Deserialize)]
 pub enum ConditionType {
     Random(f64),
     Input(u32),
@@ -123,7 +122,7 @@ pub enum ConditionType {
     Gte((IVec2, IVec2), String),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Condition {
     And(Vec<Condition>),
     Or(Vec<Condition>),
@@ -164,16 +163,73 @@ impl Condition {
             },
         }
     }
+    pub fn from_value(value: &Value) -> Option<Self> {
+        let value = value.as_array()?;
+
+        let condition_type = value[0].as_str()?;
+
+        match condition_type {
+            "And" => Some(Condition::And(value[1].as_array()?.into_iter().filter_map(|condition| Condition::from_value(condition)).collect())),
+            "Or" => Some(Condition::Or(value[1].as_array()?.into_iter().filter_map(|condition| Condition::from_value(condition)).collect())),
+            "Eq" => Some(Condition::Condition(ConditionType::Eq((value_as_ivec(&value[1])?, value_as_ivec(&value[2])?), value[3].as_str()?.to_string()))),
+            "Lt" => Some(Condition::Condition(ConditionType::Lt((value_as_ivec(&value[1])?, value_as_ivec(&value[2])?), value[3].as_str()?.to_string()))),
+            "Lte" => Some(Condition::Condition(ConditionType::Lte((value_as_ivec(&value[1])?, value_as_ivec(&value[2])?), value[3].as_str()?.to_string()))),
+            "Gt" => Some(Condition::Condition(ConditionType::Gt((value_as_ivec(&value[1])?, value_as_ivec(&value[2])?), value[3].as_str()?.to_string()))),
+            "Gte" => Some(Condition::Condition(ConditionType::Gte((value_as_ivec(&value[1])?, value_as_ivec(&value[2])?), value[3].as_str()?.to_string()))),
+            "Is" => Some(Condition::Condition(ConditionType::Is(value_as_ivec(&value[1])?, value[2].as_str()?.to_string(), TagValue::deserialize(&value[3]).unwrap_or(TagValue::None)))),
+            "Input" => Some(Condition::Condition(ConditionType::Input(value[1].as_u64()? as u32))),
+            "Random" => Some(Condition::Condition(ConditionType::Random(value[1].as_f64()?))),
+            _ => None
+        }
+    }
+    
 }
 
-#[derive(Clone)]
-pub enum Result {
+fn value_as_ivec(value: &Value) -> Option<IVec2> {
+    let arr = value.as_array()?;
+    Some(IVec2::new(arr[0].as_i64()? as i32, arr[1].as_i64()? as i32))
+}
+
+#[derive(Clone, Debug)]
+pub enum RuleOutcome {
     Clone(IVec2),
     ChangeTags(Vec<(String, Math)>),
     SetTags(Vec<(String, TagValue)>),
     SetElement(Math)
 }
-#[derive(Clone)]
+impl RuleOutcome {
+    pub fn from_value(value: &Value) -> Option<Vec<(IVec2, Self)>> {
+        let outcomes = value.as_array()?;
+
+        Some(outcomes.into_iter().filter_map(|outcome| {
+            let elements = outcome.as_array()?;
+            let target = value_as_ivec(&elements[0])?;
+
+            let outcome = match elements[1].as_str()? {
+                "Clone" => Some(Self::Clone(value_as_ivec(&elements[2])?)),
+                "ChangeTags" => Some(Self::ChangeTags(elements[2].as_array()?.into_iter().filter_map(|change| {
+                        let arr = change.as_array()?;
+                        let tag = arr[0].as_str()?.to_string();
+                        let new_value = Math::from_value(&arr[1])?;
+
+                        Some((tag, new_value))
+                    }).collect())),
+                "SetTags" => Some(Self::SetTags(elements[2].as_array()?.into_iter().filter_map(|change| {
+                    let arr = change.as_array()?;
+                    let tag = arr[0].as_str()?.to_string();
+                    let new_value = TagValue::deserialize(&arr[1]).ok()?;
+                    Some((tag, new_value))
+                }).collect())),
+                "SetElement" => Some(Self::SetElement(Math::from_value(&elements[2])?)),
+                _ => None
+            };
+
+            Some((target, outcome?))
+        }).collect())
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
 pub enum Math {
     Minus(Box<Math>, Box<Math>),
     Plus(Box<Math>, Box<Math>),
@@ -193,17 +249,33 @@ impl Math {
             Math::Value(value) => *value,
         }
     }
+    pub fn from_value(value: &Value) -> Option<Self> {
+        let elemets = value.as_array()?;
+        if elemets.len() == 1 {
+            return Some(Math::Value(TagValue::deserialize(&elemets[0]).ok()?));
+        }
+        if elemets[1].is_string() {
+            return Some(Math::Tag(value_as_ivec(&elemets[0])?, elemets[1].as_str()?.to_string()))
+        }
+        match elemets[1].as_str()? {
+            "+" => Some(Math::Plus(Box::new(Math::from_value(&elemets[0])?), Box::new(Math::from_value(&elemets[2])?))),
+            "-" => Some(Math::Minus(Box::new(Math::from_value(&elemets[0])?), Box::new(Math::from_value(&elemets[2])?))),
+            "*" => Some(Math::Mul(Box::new(Math::from_value(&elemets[0])?), Box::new(Math::from_value(&elemets[2])?))),
+            "/" => Some(Math::Div(Box::new(Math::from_value(&elemets[0])?), Box::new(Math::from_value(&elemets[2])?))),
+            _ => None
+        }
+    }
 }
 
 fn get_index(pos: &IVec2, world_size: i32) -> usize {
     (pos.y*world_size+pos.x) as usize
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum RuleType {
     Rule {
         condition: Condition,
-        result: Vec<(IVec2, Result)>,
+        rule_outcome: Vec<(IVec2, RuleOutcome)>,
         priority: Math
     },
     CompoundRule(Vec<RuleType>) // bool sets wheather affected pixels are shared or not
@@ -219,14 +291,14 @@ impl RuleType {
         input: &Res<Input<ScanCode>>
     ) -> Vec<Action> {
         match self {
-            RuleType::Rule{condition, result, priority} => {
+            RuleType::Rule{condition, rule_outcome, priority} => {
                 if condition.evaluate(pos, tiles, world_size, input) {
-                    return vec![Action::new(result.iter().map(|(rel_pos, result)| {
-                        (pos.wrapping_add(*rel_pos), match result {
-                            Result::Clone(from) => ActionDataType::Clone(pos.wrapping_add(*from)),
-                            Result::ChangeTags(tags) => ActionDataType::ReplaceTags(tags.iter().map(|(tag, math)| (tag.to_string(), math.evaluate(pos, tiles, world_size))).collect()),
-                            Result::SetTags(tags) => ActionDataType::ReplaceTags(tags.iter().cloned().collect()),
-                            Result::SetElement(el) => ActionDataType::ReplaceAllTags(elements.get_el(el.evaluate(pos, tiles, world_size)).iter().cloned().collect()),
+                    return vec![Action::new(rule_outcome.iter().map(|(rel_pos, rule_outcome)| {
+                        (pos.wrapping_add(*rel_pos), match rule_outcome {
+                            RuleOutcome::Clone(from) => ActionDataType::Clone(pos.wrapping_add(*from)),
+                            RuleOutcome::ChangeTags(tags) => ActionDataType::ReplaceTags(tags.iter().map(|(tag, math)| (tag.to_string(), math.evaluate(pos, tiles, world_size))).collect()),
+                            RuleOutcome::SetTags(tags) => ActionDataType::ReplaceTags(tags.iter().cloned().collect()),
+                            RuleOutcome::SetElement(el) => ActionDataType::ReplaceAllTags(elements.get_el(el.evaluate(pos, tiles, world_size)).iter().cloned().collect()),
                         })
                     }).collect(), priority.evaluate(pos, tiles, world_size).as_float())];
                 }
