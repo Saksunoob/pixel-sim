@@ -44,9 +44,7 @@ impl Ruleset {
             .flat_map(|index| {
                 let x = index % world_size;
                 let y = index / world_size;
-                let out = rule.execute(IVec2::new(x, y), tiles, world_size, elements, frame, input);
-
-                out
+                rule.execute(IVec2::new(x, y), tiles, world_size, elements, frame, input)
             })
             .collect();
 
@@ -54,8 +52,15 @@ impl Ruleset {
 
         let affected: Vec<RwLock<bool>> = (0..(world_size * world_size)).into_par_iter().map(|_| RwLock::from(false)).collect();
 
+        let is_affected = |index: &IVec2| -> bool {
+            if index.x < 0 || index.y < 0 || index.x >= world_size || index.y >= world_size {
+                return true;
+            }
+            *affected[get_index(&index, world_size)].read().unwrap()
+        };
+
         let actions: HashMap<usize, ActionDataType> = actions.into_iter().filter_map(|action| { // Find out a way to make this parrallel while preserving priority
-            if action.get_affected().iter().any(|index| *affected[get_index(index, world_size)].read().unwrap()) {
+            if action.get_affected().iter().any(|index| is_affected(index)) {
                 return None;
             }
             action.get_affected().iter().for_each(|index| *affected[get_index(index, world_size)].write().unwrap() = true);
@@ -250,7 +255,8 @@ impl Math {
         }
     }
     pub fn from_value(value: &Value) -> Option<Self> {
-        let elements = value.as_array()?;
+        let elements = value.as_array().cloned().unwrap_or(vec![value.clone()]);
+
         if elements.len() == 1 {
             return Some(Math::Value(TagValue::deserialize(&elements[0]).ok()?));
         }
@@ -282,6 +288,13 @@ pub enum RuleType {
     CompoundRule(String, Vec<RuleType>) // bool sets wheather affected pixels are shared or not
 }
 impl RuleType {
+    pub fn get_name(&self) -> &str {
+        match self {
+            RuleType::Rule { name, .. } => &name,
+            RuleType::CompoundRule(name, _) => &name,
+        }
+    }
+
     pub fn execute(
         &self, 
         pos: IVec2,

@@ -2,7 +2,7 @@
     [
         "gravity",
         {
-            "name": "down_gravity",
+            "name": "gravity_down",
             "condition": ["Lt", [0, 1], [0, 0], "mass"],
             "rule_outcome": [
                 [
@@ -17,7 +17,119 @@
                 ]
             ], 
             "priority": [[[0, 0], "mass"], "-", [[0, 1], "mass"]]
+        },
+        {
+            "name": "gravity_diagonal_right",
+            "condition": ["And", [
+                ["Lt", [1, 0], [0, 0], "mass"],
+                ["Lte", [1, 1], [1, 0], "mass"]
+            ]],
+            "rule_outcome": [
+                [
+                    [1, 1],
+                    "Clone",
+                    [0, 0]
+                ],
+                [
+                    [0, 0],
+                    "Clone",
+                    [1, 1]
+                ]
+            ],
+            "priority": [[[[0, 0], "mass"], "-", [[1, 1], "mass"]], "/", [10]]
+        },
+        {
+            "name": "gravity_diagonal_left",
+            "condition": ["And", [
+                ["Lt", [-1, 0], [0, 0], "mass"],
+                ["Lte", [-1, 1], [-1, 0], "mass"]
+            ]],
+            "rule_outcome": [
+                [
+                    [-1, -1],
+                    "Clone",
+                    [0, 0]
+                ],
+                [
+                    [0, 0],
+                    "Clone",
+                    [-1, 1]
+                ]
+            ],
+            "priority": [[[[0, 0], "mass"], "-", [[-1, 1], "mass"]], "/", [10]]
         }
-    ]
-    
+    ],
+    [
+        "rain",
+        {
+            "name": "rain_paper",
+            "condition": ["And", [
+                ["Is", [0, -1], "mass", null],
+                ["Random", 0.2],
+                ["Input", 57]
+            ]],
+            "rule_outcome": [
+                [
+                    [0, 0],
+                    "SetElement",
+                    "paper"
+                ]
+            ],
+            "priority": [0.1]
+        },
+        {
+            "name": "rain_spark",
+            "condition": ["And", [
+                ["Is", [0, -1], "mass", null],
+                ["Random", 0.0002],
+                ["Input", 57]
+            ]],
+            "rule_outcome": [
+                [
+                    [0, 0],
+                    "SetElement",
+                    "spark"
+                ]
+            ],
+            "priority": [0.1]
+        }
+    ], 
+    {
+        "name": "ignition",
+        "condition": ["And", [
+            ["Is", [0, 0], "flammable", ""],
+            ["Or", [
+                ["Is", [1, 0], "burning", ""],
+                ["Is", [0, 1], "burning", ""],
+                ["Is", [-1, 0], "burning", ""],
+                ["Is", [0, -1], "burning", ""]
+            ]]
+        ]],
+        "rule_outcome": [
+            [
+                [0, 0],
+                "ChangeTags",
+                [
+                    ["burning", ""]
+                ]
+            ]
+        ],
+        "priority": [1]
+    },
+    {
+        "name": "burning",
+        "condition": ["Is", [0, 0], "burning", ""],
+        "rule_outcome": [
+            [[0, 0], "ChangeTags", [["burn_time", [[[0, 0], "burn_time"], "-", 1]]]]
+        ],
+        "priority": [0.1]
+    },
+    {
+        "name": "burn_out",
+        "condition": ["Is", [0, 0], "burn_time", 0],
+        "rule_outcome": [
+            [[0, 0], "SetElement", [[0, 0], "on_burn_out"]]
+        ],
+        "priority": [1]
+    }
 ]

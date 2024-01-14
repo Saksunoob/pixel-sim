@@ -1,16 +1,16 @@
 use std::{path::Path, fs};
 use serde_json::Value;
 
-use crate::{world::Element, rules::{RuleType, Condition, RuleOutcome, Math}};
+use crate::{world::Elements, rules::{RuleType, Condition, RuleOutcome, Math}};
 
-pub fn load_elements(path: &Path) -> Option<Vec<Element>> {
+pub fn load_elements(path: &Path) -> Option<Elements> {
     if path.is_file() {
         let file_content = match fs::read_to_string(path) {
             Ok(content) => Some(content),
             Err(_) => None,
         }?;
         match serde_json::from_str(&file_content) {
-            Ok(element) => Some(element),
+            Ok(elements) => Some(Elements::new(elements)),
             Err(_) => None
         }
     } else {

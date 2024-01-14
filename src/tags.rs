@@ -187,12 +187,15 @@ impl<'de> Deserialize<'de> for TagValue {
                         eprintln!("invalid color tag {value}")
                     }
                 }
+                if value == "" {
+                    return Ok(TagValue::Empty)
+                }
                 Ok(TagValue::Element(hash(value)))
             }
             fn visit_unit<E>(self) -> Result<Self::Value, E>
                 where
                     E: serde::de::Error, {
-                Ok(TagValue::Empty)
+                Ok(TagValue::None)
             }
         }
         deserializer.deserialize_any(TagValueVisitor)

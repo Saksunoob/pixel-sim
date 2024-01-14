@@ -38,8 +38,7 @@ pub struct World {
 }
 
 impl World {
-    pub fn new(size: usize, elements: Vec<Element>, ruleset: Ruleset) -> Self {
-        let elements = Elements::new(elements);
+    pub fn new(size: usize, elements: Elements, ruleset: Ruleset) -> Self {
 
         let mut bits = HashMap::new();
         elements.elements.iter().for_each(|(_, tags)| {
@@ -174,7 +173,7 @@ pub struct Element {
     pub tags: HashMap<String, TagValue>
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Elements {
     elements: HashMap<u64, Vec<(String, TagValue)>>,
     default: u64,
