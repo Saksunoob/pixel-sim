@@ -250,18 +250,18 @@ impl Math {
         }
     }
     pub fn from_value(value: &Value) -> Option<Self> {
-        let elemets = value.as_array()?;
-        if elemets.len() == 1 {
-            return Some(Math::Value(TagValue::deserialize(&elemets[0]).ok()?));
+        let elements = value.as_array()?;
+        if elements.len() == 1 {
+            return Some(Math::Value(TagValue::deserialize(&elements[0]).ok()?));
         }
-        if elemets[1].is_string() {
-            return Some(Math::Tag(value_as_ivec(&elemets[0])?, elemets[1].as_str()?.to_string()))
+        if elements.len() == 2 && elements[1].is_string() {
+            return Some(Math::Tag(value_as_ivec(&elements[0])?, elements[1].as_str()?.to_string()))
         }
-        match elemets[1].as_str()? {
-            "+" => Some(Math::Plus(Box::new(Math::from_value(&elemets[0])?), Box::new(Math::from_value(&elemets[2])?))),
-            "-" => Some(Math::Minus(Box::new(Math::from_value(&elemets[0])?), Box::new(Math::from_value(&elemets[2])?))),
-            "*" => Some(Math::Mul(Box::new(Math::from_value(&elemets[0])?), Box::new(Math::from_value(&elemets[2])?))),
-            "/" => Some(Math::Div(Box::new(Math::from_value(&elemets[0])?), Box::new(Math::from_value(&elemets[2])?))),
+        match elements[1].as_str()? {
+            "+" => Some(Math::Plus(Box::new(Math::from_value(&elements[0])?), Box::new(Math::from_value(&elements[2])?))),
+            "-" => Some(Math::Minus(Box::new(Math::from_value(&elements[0])?), Box::new(Math::from_value(&elements[2])?))),
+            "*" => Some(Math::Mul(Box::new(Math::from_value(&elements[0])?), Box::new(Math::from_value(&elements[2])?))),
+            "/" => Some(Math::Div(Box::new(Math::from_value(&elements[0])?), Box::new(Math::from_value(&elements[2])?))),
             _ => None
         }
     }
@@ -274,11 +274,12 @@ fn get_index(pos: &IVec2, world_size: i32) -> usize {
 #[derive(Clone, Debug)]
 pub enum RuleType {
     Rule {
+        name: String,
         condition: Condition,
         rule_outcome: Vec<(IVec2, RuleOutcome)>,
         priority: Math
     },
-    CompoundRule(Vec<RuleType>) // bool sets wheather affected pixels are shared or not
+    CompoundRule(String, Vec<RuleType>) // bool sets wheather affected pixels are shared or not
 }
 impl RuleType {
     pub fn execute(
@@ -291,7 +292,7 @@ impl RuleType {
         input: &Res<Input<ScanCode>>
     ) -> Vec<Action> {
         match self {
-            RuleType::Rule{condition, rule_outcome, priority} => {
+            RuleType::Rule{name, condition, rule_outcome, priority} => {
                 if condition.evaluate(pos, tiles, world_size, input) {
                     return vec![Action::new(rule_outcome.iter().map(|(rel_pos, rule_outcome)| {
                         (pos.wrapping_add(*rel_pos), match rule_outcome {
@@ -304,7 +305,7 @@ impl RuleType {
                 }
                 Vec::new()
             },
-            RuleType::CompoundRule(rules) => {
+            RuleType::CompoundRule(name, rules) => {
                 rules.iter().flat_map(|rule| rule.execute(pos, tiles, world_size, elements, frame, input)).collect()
             }
         }

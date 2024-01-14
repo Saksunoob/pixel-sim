@@ -28,8 +28,6 @@ fn main() {
     let elements = load_elements(Path::new("elements.json")).unwrap();
     let mut rules = load_rules(Path::new("rules.json")).unwrap();
 
-    println!("{:?}", rules);
-
     rules.append(&mut vec![
         /*// Gravity
         RuleType::CompoundRule(vec![
@@ -56,13 +54,15 @@ fn main() {
                 priority: Math::Div(Box::new(Math::Minus(Box::new(Math::Tag(IVec2::ZERO, "mass".to_string())), Box::new(Math::Tag(IVec2::new(-1, 1), "mass".to_string())))), Box::new(Math::Value(TagValue::Float(0.1)))),
             },
         ]),*/
-        RuleType::CompoundRule(vec![
-            RuleType::Rule { 
+        RuleType::CompoundRule("rain".to_string(), vec![
+            RuleType::Rule {
+                name: "paper_rain".to_string(),
                 condition: rules::Condition::And(vec![rules::Condition::Condition(ConditionType::Is(IVec2::new(0, -1), "mass".to_string(), TagValue::None)), rules::Condition::Condition(ConditionType::Random(0.2)), rules::Condition::Condition(ConditionType::Input(57))]),
                 rule_outcome: vec![(IVec2::ZERO, RuleOutcome::SetElement(Math::Value(TagValue::Element(hash("paper")))))],
                 priority: Math::Value(TagValue::Float(0.1))
             },
             RuleType::Rule {
+                name: "spark_rain".to_string(),
                 condition: rules::Condition::And(vec![rules::Condition::Condition(ConditionType::Is(IVec2::new(0, -1), "mass".to_string(), TagValue::None)), rules::Condition::Condition(ConditionType::Random(0.0001)), rules::Condition::Condition(ConditionType::Input(57))]),
                 rule_outcome: vec![(IVec2::ZERO, RuleOutcome::SetElement(Math::Value(TagValue::Element(hash("spark")))))],
                 priority: Math::Value(TagValue::Float(0.1)),

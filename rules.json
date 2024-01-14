@@ -1,18 +1,23 @@
 [
-    {
-        "condition": ["Lt", [0, 1], [0, 0], "mass"],
-        "rule_outcome": [
-            [
-                [0, 1],
-                "Clone",
-                [0, 0]
-            ],
-            [
-                [0, 0],
-                "Clone",
-                [0, 1]
-            ]
-        ], 
-        "priority": [1.0]
-    }
+    [
+        "gravity",
+        {
+            "name": "down_gravity",
+            "condition": ["Lt", [0, 1], [0, 0], "mass"],
+            "rule_outcome": [
+                [
+                    [0, 1],
+                    "Clone",
+                    [0, 0]
+                ],
+                [
+                    [0, 0],
+                    "Clone",
+                    [0, 1]
+                ]
+            ], 
+            "priority": [[[0, 0], "mass"], "-", [[0, 1], "mass"]]
+        }
+    ]
+    
 ]
