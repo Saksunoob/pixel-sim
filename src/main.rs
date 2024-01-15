@@ -16,7 +16,6 @@ use world::WorldPlugin;
 
 use crate::camera::CameraPlugin;
 use crate::file_parser::load_elements;
-use crate::tags::TagValue;
 
 mod camera;
 mod world;
@@ -25,8 +24,8 @@ mod tags;
 mod file_parser;
 
 fn main() {
-    let elements = load_elements(Path::new("elements.json")).unwrap();
-    let rules = load_rules(Path::new("rules.json")).unwrap();
+    let elements = load_elements(Path::new("src/elements.json")).unwrap();
+    let rules = load_rules(Path::new("src/rules.json")).unwrap();
 
     let ruleset = Ruleset::new(rules);
 

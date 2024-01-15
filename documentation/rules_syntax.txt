@@ -1,0 +1,48 @@
+File should start with an array [].
+Array should contain all rules and compound rules.
+Compound rule is in array [] inside the intitial array.
+First element of a compound rule array should be a string conatining the name of the compound rule.
+Rules placed inside the secondary array will be a part of a single compound rule.
+
+Structure of a rule:
+{
+    "name": String                          // Name of the rule in a string
+    "condition": Condition                  // Condition for the rule to execute
+    "rule_outcome": [Outcome]               // What happens once the condition is passed
+    "priority": Math                        // In which order should rules of this type be executed
+}
+
+Condtions:
+["And", [Conditions]]                       // Returns true if all conditions are true
+["Or",  [Conditions]]                       // Returns true if any conditions are true
+["Eq", [pos], [pos], "tag"]                 // Returns true if both positions have the same value for "tag"
+["Lt", [pos1], [pos2], "tag"]               // Returns true if pos1 has a lesser value than pos2 for "tag"
+["Lte", [pos1], [pos2], "tag"]              // Returns true if pos1 has a lesser or equal value than pos2 for "tag"
+["Gt", [pos1], [pos2], "tag"]               // Returns true if pos1 has a greater value than pos2 for "tag"
+["Gte", [pos1], [pos2], "tag"]              // Returns true if pos1 has a greater or equal value than pos2 for "tag"
+["Is", [pos], "tag", [value]]               // Returns true if "tag" at pos is value
+["Input", scancode]                         // Retruns true if a key with the specified scancode is pressed
+["Random", chance]                          // Returns true if a random number (0-1) is lower or equal to chance.
+
+Outcomes:
+[[target], "Clone", [pos]]                  // Clones all tags from pos to target
+[[target], "ChangeTags", [["tag", Math]]]   // Changes "tags" of target based on Math
+[[target], "SetTags", [["tag", Value]]]     // Sets "tags" of target to Value
+[[target], "SetElement", "element"]         // Sets all tags of target to default tags of "element"
+
+Math:
+[Math, "+", Math]                           // Adds the results of both Math elements
+[Math, "-", Math]                           // Subtracts the result of the second Math element from the first
+[Math, "*", Math]                           // Multiplies the results of the Math elements together
+[Math, "/", Math]                           // Divides the first Math element's result by the second's
+[Value]                                     // Returns value
+[[pos], "tag"]                              // Return "tag" at pos
+
+Value:
+null                                        // returns None
+""                                          // returns Empty
+whole number ex. 23, -45                    // returns Integer
+floating-point number ex. 0.1, 55.0         // returns Float
+true / false                                // returns Boolean
+"element"                                   // returns Element !! Does not allow arithmatic at all
+"#hex_color"                                // returns Integer (containing color)

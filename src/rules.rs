@@ -305,7 +305,7 @@ impl RuleType {
         input: &Res<Input<ScanCode>>
     ) -> Vec<Action> {
         match self {
-            RuleType::Rule{name, condition, rule_outcome, priority} => {
+            RuleType::Rule{name: _, condition, rule_outcome, priority} => {
                 if condition.evaluate(pos, tiles, world_size, input) {
                     return vec![Action::new(rule_outcome.iter().map(|(rel_pos, rule_outcome)| {
                         (pos.wrapping_add(*rel_pos), match rule_outcome {
@@ -318,7 +318,7 @@ impl RuleType {
                 }
                 Vec::new()
             },
-            RuleType::CompoundRule(name, rules) => {
+            RuleType::CompoundRule(_, rules) => {
                 rules.iter().flat_map(|rule| rule.execute(pos, tiles, world_size, elements, frame, input)).collect()
             }
         }

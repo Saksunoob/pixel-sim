@@ -1,0 +1,20 @@
+File should start with an array [].
+Array should contain all elements.
+
+Structure of an element
+
+{
+    "name": String,             // String containing the name of the element, used to identify it in rules
+    "tags": {                   // Object containing all default tags for the element
+        "tagname": Value        // Specify a Value for "tagname"
+    }
+}
+
+Value:
+null                                        // returns None
+""                                          // returns Empty
+whole number ex. 23, -45                    // returns Integer
+floating-point number ex. 0.1, 55.0         // returns Float
+true / false                                // returns Boolean
+"element"                                   // returns Element
+"#hex_color"                                // returns Integer (containing color)
