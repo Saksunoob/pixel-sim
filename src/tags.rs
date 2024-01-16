@@ -1,7 +1,7 @@
-use std::ops::{Div, Mul, Sub, Add};
-use rayon::prelude::*;
 use bevy::math::IVec2;
-use serde::{Deserialize, Serialize, Deserializer};
+use rayon::prelude::*;
+use serde::{Deserialize, Deserializer, Serialize};
+use std::ops::{Add, Div, Mul, Sub};
 
 use crate::hash;
 
@@ -46,7 +46,7 @@ impl PartialOrd for TagValue {
             (TagValue::Boolean(b1), TagValue::Boolean(b2)) => Some(b1.cmp(b2)),
             (TagValue::Float(f1), TagValue::Integer(i2)) => Some(f1.total_cmp(&(*i2 as f64))),
             (TagValue::Integer(i1), TagValue::Float(f2)) => Some((*i1 as f64).total_cmp(f2)),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -56,15 +56,27 @@ impl Add for TagValue {
     fn add(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (TagValue::None, TagValue::None) => TagValue::None,
-            (TagValue::Empty, TagValue::Empty) | (TagValue::Empty, TagValue::None) | (TagValue::None, TagValue::Empty)  => TagValue::Empty,
-            (TagValue::Empty, other) | (other, TagValue::Empty) | (TagValue::None, other) | (other, TagValue::None) => other,
-            (TagValue::Integer(v1), TagValue::Integer(v2)) => TagValue::Integer(v1+v2),
-            (TagValue::Integer(v2), TagValue::Float(v1)) | (TagValue::Float(v1), TagValue::Integer(v2)) => TagValue::Float(v1+v2 as f64),
-            (TagValue::Boolean(v2), TagValue::Float(v1)) | (TagValue::Float(v1), TagValue::Boolean(v2)) => TagValue::Float(v1+v2 as i64 as f64),
-            (TagValue::Float(v1), TagValue::Float(v2)) => TagValue::Float(v1+v2),
-            (TagValue::Boolean(b), TagValue::Integer(i)) | (TagValue::Integer(i), TagValue::Boolean(b)) => TagValue::Integer(i+b as i64),
+            (TagValue::Empty, TagValue::Empty)
+            | (TagValue::Empty, TagValue::None)
+            | (TagValue::None, TagValue::Empty) => TagValue::Empty,
+            (TagValue::Empty, other)
+            | (other, TagValue::Empty)
+            | (TagValue::None, other)
+            | (other, TagValue::None) => other,
+            (TagValue::Integer(v1), TagValue::Integer(v2)) => TagValue::Integer(v1 + v2),
+            (TagValue::Integer(v2), TagValue::Float(v1))
+            | (TagValue::Float(v1), TagValue::Integer(v2)) => TagValue::Float(v1 + v2 as f64),
+            (TagValue::Boolean(v2), TagValue::Float(v1))
+            | (TagValue::Float(v1), TagValue::Boolean(v2)) => {
+                TagValue::Float(v1 + v2 as i64 as f64)
+            }
+            (TagValue::Float(v1), TagValue::Float(v2)) => TagValue::Float(v1 + v2),
+            (TagValue::Boolean(b), TagValue::Integer(i))
+            | (TagValue::Integer(i), TagValue::Boolean(b)) => TagValue::Integer(i + b as i64),
             (TagValue::Boolean(b1), TagValue::Boolean(b2)) => TagValue::Boolean(b1 | b2),
-            (TagValue::Element(_), _) | (_, TagValue::Element(_)) => panic!("Cannot do arithmatic with Tag value of type Element"),
+            (TagValue::Element(_), _) | (_, TagValue::Element(_)) => {
+                panic!("Cannot do arithmatic with Tag value of type Element")
+            }
         }
     }
 }
@@ -74,21 +86,31 @@ impl Sub for TagValue {
     fn sub(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (TagValue::None, TagValue::None) => TagValue::None,
-            (TagValue::Empty, TagValue::Empty) | (TagValue::Empty, TagValue::None) | (TagValue::None, TagValue::Empty)  => TagValue::Empty,
+            (TagValue::Empty, TagValue::Empty)
+            | (TagValue::Empty, TagValue::None)
+            | (TagValue::None, TagValue::Empty) => TagValue::Empty,
             (other, TagValue::Empty) | (other, TagValue::None) => other,
-            (TagValue::Empty, TagValue::Float(f)) | (TagValue::None, TagValue::Float(f)) => TagValue::Float(-f),
-            (TagValue::Empty, TagValue::Integer(i)) | (TagValue::None, TagValue::Integer(i)) => TagValue::Integer(-i),
-            (TagValue::Empty, TagValue::Boolean(b)) | (TagValue::None, TagValue::Boolean(b)) => TagValue::Boolean(!b),
-            (TagValue::Integer(v1), TagValue::Integer(v2)) => TagValue::Integer(v1-v2),
-            (TagValue::Integer(v1), TagValue::Float(v2)) => TagValue::Float(v1 as f64-v2),
-            (TagValue::Float(v1), TagValue::Integer(v2)) => TagValue::Float(v1-v2 as f64),
-            (TagValue::Boolean(v1), TagValue::Float(v2)) => TagValue::Float(v1 as i64 as f64-v2),
-            (TagValue::Float(v1), TagValue::Boolean(v2)) => TagValue::Float(v1-v2 as i64 as f64),
-            (TagValue::Float(v1), TagValue::Float(v2)) => TagValue::Float(v1-v2),
-            (TagValue::Boolean(b), TagValue::Integer(i)) => TagValue::Integer(b as i64-i),
-            (TagValue::Integer(i), TagValue::Boolean(b)) => TagValue::Integer(i-b as i64),
+            (TagValue::Empty, TagValue::Float(f)) | (TagValue::None, TagValue::Float(f)) => {
+                TagValue::Float(-f)
+            }
+            (TagValue::Empty, TagValue::Integer(i)) | (TagValue::None, TagValue::Integer(i)) => {
+                TagValue::Integer(-i)
+            }
+            (TagValue::Empty, TagValue::Boolean(b)) | (TagValue::None, TagValue::Boolean(b)) => {
+                TagValue::Boolean(!b)
+            }
+            (TagValue::Integer(v1), TagValue::Integer(v2)) => TagValue::Integer(v1 - v2),
+            (TagValue::Integer(v1), TagValue::Float(v2)) => TagValue::Float(v1 as f64 - v2),
+            (TagValue::Float(v1), TagValue::Integer(v2)) => TagValue::Float(v1 - v2 as f64),
+            (TagValue::Boolean(v1), TagValue::Float(v2)) => TagValue::Float(v1 as i64 as f64 - v2),
+            (TagValue::Float(v1), TagValue::Boolean(v2)) => TagValue::Float(v1 - v2 as i64 as f64),
+            (TagValue::Float(v1), TagValue::Float(v2)) => TagValue::Float(v1 - v2),
+            (TagValue::Boolean(b), TagValue::Integer(i)) => TagValue::Integer(b as i64 - i),
+            (TagValue::Integer(i), TagValue::Boolean(b)) => TagValue::Integer(i - b as i64),
             (TagValue::Boolean(b1), TagValue::Boolean(b2)) => TagValue::Boolean(b1 & !b2),
-            (TagValue::Element(_), _) | (_, TagValue::Element(_)) => panic!("Cannot do arithmatic with Tag value of type Element"),
+            (TagValue::Element(_), _) | (_, TagValue::Element(_)) => {
+                panic!("Cannot do arithmatic with Tag value of type Element")
+            }
         }
     }
 }
@@ -98,18 +120,33 @@ impl Mul for TagValue {
     fn mul(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (TagValue::None, TagValue::None) => TagValue::None,
-            (TagValue::Empty, TagValue::Empty) | (TagValue::Empty, TagValue::None) | (TagValue::None, TagValue::Empty)  => TagValue::Empty,
+            (TagValue::Empty, TagValue::Empty)
+            | (TagValue::Empty, TagValue::None)
+            | (TagValue::None, TagValue::Empty) => TagValue::Empty,
             (_, TagValue::Empty) | (_, TagValue::None) => TagValue::Empty,
-            (TagValue::Empty, TagValue::Float(_)) | (TagValue::None, TagValue::Float(_)) => TagValue::Float(0.),
-            (TagValue::Empty, TagValue::Integer(_)) | (TagValue::None, TagValue::Integer(_)) => TagValue::Integer(0),
-            (TagValue::Empty, TagValue::Boolean(_)) | (TagValue::None, TagValue::Boolean(_)) => TagValue::Boolean(false),
-            (TagValue::Integer(v1), TagValue::Integer(v2)) => TagValue::Integer(v1*v2),
-            (TagValue::Integer(v2), TagValue::Float(v1)) | (TagValue::Float(v1), TagValue::Integer(v2)) => TagValue::Float(v1*v2 as f64),
-            (TagValue::Boolean(v2), TagValue::Float(v1)) | (TagValue::Float(v1), TagValue::Boolean(v2)) => TagValue::Float(v1*v2 as i64 as f64),
-            (TagValue::Float(v1), TagValue::Float(v2)) => TagValue::Float(v1*v2),
-            (TagValue::Boolean(b), TagValue::Integer(i)) | (TagValue::Integer(i), TagValue::Boolean(b)) => TagValue::Integer(i*b as i64),
+            (TagValue::Empty, TagValue::Float(_)) | (TagValue::None, TagValue::Float(_)) => {
+                TagValue::Float(0.)
+            }
+            (TagValue::Empty, TagValue::Integer(_)) | (TagValue::None, TagValue::Integer(_)) => {
+                TagValue::Integer(0)
+            }
+            (TagValue::Empty, TagValue::Boolean(_)) | (TagValue::None, TagValue::Boolean(_)) => {
+                TagValue::Boolean(false)
+            }
+            (TagValue::Integer(v1), TagValue::Integer(v2)) => TagValue::Integer(v1 * v2),
+            (TagValue::Integer(v2), TagValue::Float(v1))
+            | (TagValue::Float(v1), TagValue::Integer(v2)) => TagValue::Float(v1 * v2 as f64),
+            (TagValue::Boolean(v2), TagValue::Float(v1))
+            | (TagValue::Float(v1), TagValue::Boolean(v2)) => {
+                TagValue::Float(v1 * v2 as i64 as f64)
+            }
+            (TagValue::Float(v1), TagValue::Float(v2)) => TagValue::Float(v1 * v2),
+            (TagValue::Boolean(b), TagValue::Integer(i))
+            | (TagValue::Integer(i), TagValue::Boolean(b)) => TagValue::Integer(i * b as i64),
             (TagValue::Boolean(b1), TagValue::Boolean(b2)) => TagValue::Boolean(b1 & b2),
-            (TagValue::Element(_), _) | (_, TagValue::Element(_)) => panic!("Cannot do arithmatic with Tag value of type Element"),
+            (TagValue::Element(_), _) | (_, TagValue::Element(_)) => {
+                panic!("Cannot do arithmatic with Tag value of type Element")
+            }
         }
     }
 }
@@ -119,21 +156,31 @@ impl Div for TagValue {
     fn div(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (TagValue::None, TagValue::None) => TagValue::None,
-            (TagValue::Empty, TagValue::Empty) | (TagValue::Empty, TagValue::None) | (TagValue::None, TagValue::Empty)  => TagValue::Empty,
+            (TagValue::Empty, TagValue::Empty)
+            | (TagValue::Empty, TagValue::None)
+            | (TagValue::None, TagValue::Empty) => TagValue::Empty,
             (_, TagValue::Empty) | (_, TagValue::None) => TagValue::Empty,
-            (TagValue::Empty, TagValue::Float(_)) | (TagValue::None, TagValue::Float(_)) => TagValue::Float(0.),
-            (TagValue::Empty, TagValue::Integer(_)) | (TagValue::None, TagValue::Integer(_)) => TagValue::Integer(0),
-            (TagValue::Empty, TagValue::Boolean(_)) | (TagValue::None, TagValue::Boolean(_)) => TagValue::Boolean(false),
-            (TagValue::Integer(v1), TagValue::Integer(v2)) => TagValue::Integer(v1/v2),
-            (TagValue::Integer(v1), TagValue::Float(v2)) => TagValue::Float(v1 as f64/v2),
-            (TagValue::Float(v1), TagValue::Integer(v2)) => TagValue::Float(v1/v2 as f64),
-            (TagValue::Boolean(v1), TagValue::Float(v2)) => TagValue::Float(v1 as i64 as f64/v2),
-            (TagValue::Float(v1), TagValue::Boolean(v2)) => TagValue::Float(v1/v2 as i64 as f64),
-            (TagValue::Float(v1), TagValue::Float(v2)) => TagValue::Float(v1*v2),
-            (TagValue::Boolean(b), TagValue::Integer(i)) => TagValue::Integer(b as i64*i),
-            (TagValue::Integer(i), TagValue::Boolean(b)) => TagValue::Integer(i*b as i64),
+            (TagValue::Empty, TagValue::Float(_)) | (TagValue::None, TagValue::Float(_)) => {
+                TagValue::Float(0.)
+            }
+            (TagValue::Empty, TagValue::Integer(_)) | (TagValue::None, TagValue::Integer(_)) => {
+                TagValue::Integer(0)
+            }
+            (TagValue::Empty, TagValue::Boolean(_)) | (TagValue::None, TagValue::Boolean(_)) => {
+                TagValue::Boolean(false)
+            }
+            (TagValue::Integer(v1), TagValue::Integer(v2)) => TagValue::Integer(v1 / v2),
+            (TagValue::Integer(v1), TagValue::Float(v2)) => TagValue::Float(v1 as f64 / v2),
+            (TagValue::Float(v1), TagValue::Integer(v2)) => TagValue::Float(v1 / v2 as f64),
+            (TagValue::Boolean(v1), TagValue::Float(v2)) => TagValue::Float(v1 as i64 as f64 / v2),
+            (TagValue::Float(v1), TagValue::Boolean(v2)) => TagValue::Float(v1 / v2 as i64 as f64),
+            (TagValue::Float(v1), TagValue::Float(v2)) => TagValue::Float(v1 * v2),
+            (TagValue::Boolean(b), TagValue::Integer(i)) => TagValue::Integer(b as i64 * i),
+            (TagValue::Integer(i), TagValue::Boolean(b)) => TagValue::Integer(i * b as i64),
             (TagValue::Boolean(b1), TagValue::Boolean(b2)) => TagValue::Boolean(b1 ^ b2),
-            (TagValue::Element(_), _) | (_, TagValue::Element(_)) => panic!("Cannot do arithmatic with Tag value of type Element"),
+            (TagValue::Element(_), _) | (_, TagValue::Element(_)) => {
+                panic!("Cannot do arithmatic with Tag value of type Element")
+            }
         }
     }
 }
@@ -152,23 +199,27 @@ impl<'de> Deserialize<'de> for TagValue {
             }
 
             fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
-                where
-                    E: serde::de::Error, {
+            where
+                E: serde::de::Error,
+            {
                 return Ok(TagValue::Integer(v));
             }
             fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
-                where
-                    E: serde::de::Error, {
+            where
+                E: serde::de::Error,
+            {
                 self.visit_i64(v as i64)
             }
             fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
-                where
-                    E: serde::de::Error, {
+            where
+                E: serde::de::Error,
+            {
                 Ok(TagValue::Float(v))
             }
             fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
-                where
-                    E: serde::de::Error, {
+            where
+                E: serde::de::Error,
+            {
                 Ok(TagValue::Boolean(v))
             }
 
@@ -182,19 +233,20 @@ impl<'de> Deserialize<'de> for TagValue {
                     let g = u8::from_str_radix(&value[3..5], 16);
                     let b = u8::from_str_radix(&value[5..7], 16);
                     if let (Ok(r), Ok(g), Ok(b)) = (r, g, b) {
-                        return Ok(TagValue::Integer(color_to_int(r, g, b)))
+                        return Ok(TagValue::Integer(color_to_int(r, g, b)));
                     } else {
                         eprintln!("invalid color tag {value}")
                     }
                 }
                 if value == "" {
-                    return Ok(TagValue::Empty)
+                    return Ok(TagValue::Empty);
                 }
                 Ok(TagValue::Element(hash(value)))
             }
             fn visit_unit<E>(self) -> Result<Self::Value, E>
-                where
-                    E: serde::de::Error, {
+            where
+                E: serde::de::Error,
+            {
                 Ok(TagValue::None)
             }
         }
@@ -209,14 +261,17 @@ const fn color_to_int(r: u8, g: u8, b: u8) -> i64 {
 #[derive(Clone)]
 pub struct TagSpace {
     array: Vec<TagValue>,
-    world_size: i32
+    world_size: i32,
 }
 impl TagSpace {
     pub fn new_with_value(value: TagValue, world_size: i32) -> Self {
-        Self { array: vec![value; (world_size*world_size) as usize], world_size }
+        Self {
+            array: vec![value; (world_size * world_size) as usize],
+            world_size,
+        }
     }
     pub fn get_tag(&self, pos: IVec2) -> TagValue {
-        let index = pos.y*self.world_size+pos.x;
+        let index = pos.y * self.world_size + pos.x;
         *self.array.get(index as usize).unwrap_or(&TagValue::None)
     }
     pub fn get_rel_tag(&self, origin: IVec2, pos: IVec2) -> TagValue {
@@ -225,7 +280,7 @@ impl TagSpace {
             return TagValue::None;
         }
 
-        let index = pos.y*self.world_size+pos.x;
+        let index = pos.y * self.world_size + pos.x;
         *self.array.get(index as usize).unwrap_or(&TagValue::None)
     }
     pub fn get_tag_at_index(&self, index: i32) -> TagValue {

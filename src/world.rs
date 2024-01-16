@@ -16,9 +16,9 @@ use bevy::{
     transform::components::Transform,
 };
 use rayon::prelude::*;
+use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
-use serde::Deserialize;
 
 pub struct WorldPlugin(pub World);
 
@@ -39,20 +39,22 @@ pub struct World {
 
 impl World {
     pub fn new(size: usize, elements: Elements, ruleset: Ruleset) -> Self {
-
         let mut bits = HashMap::new();
         elements.elements.iter().for_each(|(_, tags)| {
             tags.iter().for_each(|(tag, _)| {
                 if !bits.contains_key(tag) {
                     bits.insert(
                         tag.to_string(),
-                        TagSpace::new_with_value(elements
-                            .get(elements.default).into_iter()
-                            .collect::<HashMap<String, TagValue>>()
-                            .get(tag)
-                            .copied()
-                            .unwrap_or(TagValue::None), size as i32
-                        )
+                        TagSpace::new_with_value(
+                            elements
+                                .get(elements.default)
+                                .into_iter()
+                                .collect::<HashMap<String, TagValue>>()
+                                .get(tag)
+                                .copied()
+                                .unwrap_or(TagValue::None),
+                            size as i32,
+                        ),
                     );
                 }
             })
@@ -66,7 +68,13 @@ impl World {
         }
     }
     pub fn step(&mut self, frame: u128, input: &Res<Input<ScanCode>>) {
-        self.ruleset.execute_rules(&mut self.bits, self.world_size, &self.elements, frame, input);
+        self.ruleset.execute_rules(
+            &mut self.bits,
+            self.world_size,
+            &self.elements,
+            frame,
+            input,
+        );
     }
     pub fn get_image(&self) -> Image {
         let colors = self.bits.get("color").unwrap();
@@ -74,12 +82,7 @@ impl World {
             .into_par_iter()
             .flat_map(|index| {
                 if let TagValue::Integer(value) = colors.get_tag_at_index(index) {
-                    [
-                        (value >> 16) as u8,
-                        (value >> 8) as u8,
-                        value as u8,
-                        255
-                    ]
+                    [(value >> 16) as u8, (value >> 8) as u8, value as u8, 255]
                 } else {
                     Color::PURPLE.as_rgba_u8()
                 }
@@ -170,7 +173,7 @@ fn update(
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Element {
     pub name: String,
-    pub tags: HashMap<String, TagValue>
+    pub tags: HashMap<String, TagValue>,
 }
 
 #[derive(Clone, Debug)]
@@ -187,7 +190,9 @@ impl Elements {
                 .map(|element| {
                     (
                         hash(&element.name),
-                        element.tags.into_iter()
+                        element
+                            .tags
+                            .into_iter()
                             .map(|(tag, value)| (tag.to_string(), value))
                             .collect(),
                     )

@@ -26,7 +26,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
         .with_children(|ui| {
             // Simulation information
             ui.spawn(NodeBundle {
-                style: Style { 
+                style: Style {
                     width: Val::Percent(20.0),
                     height: Val::Percent(100.0),
                     align_self: AlignSelf::End,
@@ -34,47 +34,66 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
                     border: UiRect::right(Val::Px(2.)),
                     ..default()
                 },
-                background_color: BackgroundColor(Color::Rgba { red: 0.1, green: 0.1, blue: 0.1, alpha: 0.8 }),
-                border_color: BorderColor(Color::Rgba { red: 0.2, green: 0.2, blue: 0.2, alpha: 0.9 }),
+                background_color: BackgroundColor(Color::Rgba {
+                    red: 0.1,
+                    green: 0.1,
+                    blue: 0.1,
+                    alpha: 0.8,
+                }),
+                border_color: BorderColor(Color::Rgba {
+                    red: 0.2,
+                    green: 0.2,
+                    blue: 0.2,
+                    alpha: 0.9,
+                }),
                 ..default()
             })
             // Rules panel
             .with_children(|rules_panel| {
                 // Title
                 rules_panel.spawn(TextBundle {
-                    style: Style { margin: UiRect::horizontal(Val::Auto), ..default() },
-                    text: Text::from_section("Rules", TextStyle {
-                        font: roboto.clone(),
-                        font_size: 30.,
-                        color: Color::WHITE
-                    }),
+                    style: Style {
+                        margin: UiRect::horizontal(Val::Auto),
+                        ..default()
+                    },
+                    text: Text::from_section(
+                        "Rules",
+                        TextStyle {
+                            font: roboto.clone(),
+                            font_size: 30.,
+                            color: Color::WHITE,
+                        },
+                    ),
                     ..default()
                 });
                 // List
-                rules_panel.spawn(NodeBundle {
-                    style: Style {
-                        flex_direction: FlexDirection::Column,
-                        height: Val::Auto,
-                        padding: UiRect::horizontal(Val::Px(5.)),
-                        overflow: Overflow::clip_y(),
-                        ..default()
-                    },
-                    ..default()
-                })
-                .with_children(|list| {
-                    for rule in &world.ruleset.rules {
-                        list.spawn(TextBundle {
-                            style: Style { ..default() },
-                            text: Text::from_section(rule.get_name(), TextStyle {
-                                font: roboto.clone(),
-                                font_size: 16.,
-                                color: Color::WHITE
-                            }),
+                rules_panel
+                    .spawn(NodeBundle {
+                        style: Style {
+                            flex_direction: FlexDirection::Column,
+                            height: Val::Auto,
+                            padding: UiRect::horizontal(Val::Px(5.)),
+                            overflow: Overflow::clip_y(),
                             ..default()
-                        });
-                    }
-                });
+                        },
+                        ..default()
+                    })
+                    .with_children(|list| {
+                        for rule in &world.ruleset.rules {
+                            list.spawn(TextBundle {
+                                style: Style { ..default() },
+                                text: Text::from_section(
+                                    rule.get_name(),
+                                    TextStyle {
+                                        font: roboto.clone(),
+                                        font_size: 16.,
+                                        color: Color::WHITE,
+                                    },
+                                ),
+                                ..default()
+                            });
+                        }
+                    });
             });
-        }
-    );
+        });
 }

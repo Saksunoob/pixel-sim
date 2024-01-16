@@ -19,11 +19,11 @@ use crate::camera::CameraPlugin;
 use crate::file_parser::load_elements;
 
 mod camera;
-mod world;
+mod file_parser;
 mod rules;
 mod tags;
-mod file_parser;
 mod ui;
+mod world;
 
 fn main() {
     let elements = load_elements(Path::new("src/elements.json")).unwrap();
@@ -47,7 +47,7 @@ fn main() {
                 }),
             WorldPlugin(world::World::new(250, elements, ruleset)),
             CameraPlugin,
-            UIPlugin
+            UIPlugin,
         ))
         .run();
 }
