@@ -10,7 +10,7 @@ use crate::{world::Elements, tags::{TagSpace, TagValue}};
 
 #[derive(Clone)]
 pub struct Ruleset {
-    rules: Vec<RuleType>
+    pub rules: Vec<RuleType>
 }
 
 impl Ruleset {

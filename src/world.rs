@@ -33,8 +33,8 @@ impl Plugin for WorldPlugin {
 pub struct World {
     bits: HashMap<String, TagSpace>,
     world_size: i32,
-    ruleset: Ruleset,
-    elements: Elements,
+    pub ruleset: Ruleset,
+    pub elements: Elements,
 }
 
 impl World {

@@ -12,6 +12,7 @@ use bevy::{
 };
 use file_parser::load_rules;
 use rules::*;
+use ui::UIPlugin;
 use world::WorldPlugin;
 
 use crate::camera::CameraPlugin;
@@ -22,6 +23,7 @@ mod world;
 mod rules;
 mod tags;
 mod file_parser;
+mod ui;
 
 fn main() {
     let elements = load_elements(Path::new("src/elements.json")).unwrap();
@@ -45,6 +47,7 @@ fn main() {
                 }),
             WorldPlugin(world::World::new(250, elements, ruleset)),
             CameraPlugin,
+            UIPlugin
         ))
         .run();
 }
