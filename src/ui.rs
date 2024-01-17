@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::world::World;
+use crate::{world::World, RuleType};
 
 pub struct UIPlugin;
 
@@ -80,18 +80,66 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
                     })
                     .with_children(|list| {
                         for rule in &world.ruleset.rules {
-                            list.spawn(TextBundle {
-                                style: Style { ..default() },
-                                text: Text::from_section(
-                                    rule.get_name(),
-                                    TextStyle {
-                                        font: roboto.clone(),
-                                        font_size: 16.,
-                                        color: Color::WHITE,
-                                    },
-                                ),
-                                ..default()
-                            });
+                            match rule {
+                                RuleType::Rule { name, .. } => {
+                                    list.spawn(TextBundle {
+                                        style: Style { ..default() },
+                                        text: Text::from_section(
+                                            name,
+                                            TextStyle {
+                                                font: roboto.clone(),
+                                                font_size: 16.,
+                                                color: Color::WHITE,
+                                            },
+                                        ),
+                                        ..default()
+                                    });
+                                }
+                                RuleType::CompoundRule(name, rules) => {
+                                    list.spawn(NodeBundle {
+                                        style: Style {
+                                            flex_direction: FlexDirection::Column,
+                                            height: Val::Auto,
+                                            ..default()
+                                        },
+                                        ..default()
+                                    })
+                                    .with_children(
+                                        |section| {
+                                            section.spawn(TextBundle {
+                                                style: Style { ..default() },
+                                                text: Text::from_section(
+                                                    name,
+                                                    TextStyle {
+                                                        font: roboto.clone(),
+                                                        font_size: 16.,
+                                                        color: Color::WHITE,
+                                                    },
+                                                ),
+                                                ..default()
+                                            });
+
+                                            for rule in rules {
+                                                section.spawn(TextBundle {
+                                                    style: Style {
+                                                        margin: UiRect::left(Val::Px(10.)),
+                                                        ..default()
+                                                    },
+                                                    text: Text::from_section(
+                                                        rule.get_name(),
+                                                        TextStyle {
+                                                            font: roboto.clone(),
+                                                            font_size: 16.,
+                                                            color: Color::WHITE,
+                                                        },
+                                                    ),
+                                                    ..default()
+                                                });
+                                            }
+                                        },
+                                    );
+                                }
+                            }
                         }
                     });
             });
