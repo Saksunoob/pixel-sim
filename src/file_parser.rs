@@ -36,6 +36,7 @@ pub fn load_rule(rule: &Value) -> Option<RuleType> {
             println!("Loaded rule {name}");
             Some(RuleType::Rule {
                 name,
+                enabled: true,
                 condition,
                 rule_outcome,
                 priority,
@@ -76,13 +77,14 @@ pub fn load_rules(path: &Path) -> Option<Vec<RuleType>> {
                         .filter_map(|rule| {
                             if let Some(compound) = rule.as_array() {
                                 // Compound rule
-                                Some(RuleType::CompoundRule(
-                                    compound[0].as_str()?.to_string(),
-                                    compound[1..]
+                                Some(RuleType::CompoundRule {
+                                    name: compound[0].as_str()?.to_string(),
+                                    enabled: true,
+                                    rules: compound[1..]
                                         .into_iter()
                                         .filter_map(|rule| load_rule(rule))
                                         .collect(),
-                                ))
+                                })
                             } else {
                                 // Single rule
                                 load_rule(rule)

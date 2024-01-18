@@ -24,6 +24,31 @@ impl Ruleset {
     pub fn new(rules: Vec<RuleType>) -> Self {
         Self { rules }
     }
+    pub fn get_index(&self, index: (usize, usize)) -> Option<&RuleType> {
+        let rule = self.rules.get(index.0)?;
+        match rule {
+            RuleType::Rule { .. } => Some(rule),
+            RuleType::CompoundRule { rules, .. } => {
+                if index.1 == 0 {
+                    Some(rule)
+                } else {
+                    rules.get(index.1 - 1)
+                }
+            }
+        }
+    }
+    pub fn get_index_mut(&mut self, index: (usize, usize)) -> Option<&mut RuleType> {
+        let rule = self.rules.get_mut(index.0)?;
+        if index.1 == 0 {
+            return Some(rule);
+        } else {
+            match rule {
+                RuleType::CompoundRule { rules, .. } => rules.get_mut(index.1 - 1),
+                _ => None,
+            }
+        }
+    }
+
     pub fn execute_rules(
         &self,
         tiles: &mut HashMap<String, TagSpace>,
@@ -33,7 +58,9 @@ impl Ruleset {
         input: &Res<Input<ScanCode>>,
     ) {
         self.rules.iter().for_each(|rule| {
-            self.execute_rule(rule, tiles, world_size, elements, frame, input);
+            if rule.enabled() {
+                self.execute_rule(rule, tiles, world_size, elements, frame, input);
+            }
         })
     }
 
@@ -398,17 +425,36 @@ fn get_index(pos: &IVec2, world_size: i32) -> usize {
 pub enum RuleType {
     Rule {
         name: String,
+        enabled: bool,
         condition: Condition,
         rule_outcome: Vec<(IVec2, RuleOutcome)>,
         priority: Math,
     },
-    CompoundRule(String, Vec<RuleType>), // bool sets wheather affected pixels are shared or not
+    CompoundRule {
+        name: String,
+        enabled: bool,
+        rules: Vec<RuleType>,
+    },
 }
 impl RuleType {
     pub fn get_name(&self) -> &str {
         match self {
             RuleType::Rule { name, .. } => &name,
-            RuleType::CompoundRule(name, _) => &name,
+            RuleType::CompoundRule { name, .. } => &name,
+        }
+    }
+
+    pub fn enabled(&self) -> bool {
+        match self {
+            RuleType::Rule { enabled, .. } => *enabled,
+            RuleType::CompoundRule { enabled, .. } => *enabled,
+        }
+    }
+
+    pub fn set_enabled(&mut self, value: bool) {
+        match self {
+            RuleType::Rule { enabled, .. } => *enabled = value,
+            RuleType::CompoundRule { enabled, .. } => *enabled = value,
         }
     }
 
@@ -423,10 +469,10 @@ impl RuleType {
     ) -> Vec<Action> {
         match self {
             RuleType::Rule {
-                name: _,
                 condition,
                 rule_outcome,
                 priority,
+                ..
             } => {
                 if condition.evaluate(pos, tiles, world_size, input) {
                     return vec![Action::new(
@@ -472,9 +518,15 @@ impl RuleType {
                 }
                 Vec::new()
             }
-            RuleType::CompoundRule(_, rules) => rules
+            RuleType::CompoundRule { rules, .. } => rules
                 .iter()
-                .flat_map(|rule| rule.execute(pos, tiles, world_size, elements, frame, input))
+                .filter_map(|rule| {
+                    if rule.enabled() {
+                        return Some(rule.execute(pos, tiles, world_size, elements, frame, input));
+                    }
+                    None
+                })
+                .flatten()
                 .collect(),
         }
     }
