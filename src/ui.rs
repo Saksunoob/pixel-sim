@@ -1,6 +1,6 @@
 use bevy::{prelude::*, utils::HashMap};
 
-use crate::{world::World, Math, RuleType};
+use crate::{world::World, RuleType};
 
 pub struct UIPlugin;
 
@@ -37,16 +37,11 @@ impl Fonts {
     }
 }
 
-#[derive(Resource, Clone, Copy)]
-pub struct UIVisibility {
-    rules_menu: bool,
-}
+#[derive(Component, Clone)]
+pub struct PanelToggle(Panel);
 
-#[derive(Component)]
-pub struct RulesPlanelToggle;
-
-#[derive(Component)]
-pub struct RulesPlanel;
+#[derive(Component, Clone, PartialEq)]
+pub struct Panel(String);
 
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
@@ -59,8 +54,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
     let mut fonts = Fonts::new();
     fonts.add_font("Roboto", asset_server.load("Roboto-Black.ttf"));
     commands.insert_resource(fonts.clone());
-    let ui_visibility = UIVisibility { rules_menu: false };
-    commands.insert_resource(ui_visibility);
 
     let checkbox = CheckBox(
         asset_server.load("checkbox_unchecked.png"),
@@ -79,7 +72,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
             ..default()
         })
         .with_children(|ui| {
-            // Rules panel
+            // Info panel
             ui.spawn(NodeBundle {
                 style: Style {
                     width: Val::Auto,
@@ -90,33 +83,36 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
                 },
                 ..default()
             })
-            .with_children(|rules_panel| {
-                // Rules panel content
-                rules_panel
-                    .spawn((NodeBundle {
-                        style: Style {
-                            display: Display::None,
-                            width: Val::Vw(20.),
-                            height: Val::Percent(100.0),
-                            align_self: AlignSelf::End,
-                            flex_direction: FlexDirection::Column,
-                            border: UiRect::right(Val::Px(2.)),
+            .with_children(|info_panel| {
+                // Rules panel
+                info_panel
+                    .spawn((
+                        NodeBundle {
+                            style: Style {
+                                display: Display::None,
+                                width: Val::Vw(20.),
+                                height: Val::Percent(100.0),
+                                align_self: AlignSelf::End,
+                                flex_direction: FlexDirection::Column,
+                                border: UiRect::right(Val::Px(2.)),
+                                ..default()
+                            },
+                            background_color: BackgroundColor(Color::Rgba {
+                                red: 0.1,
+                                green: 0.1,
+                                blue: 0.1,
+                                alpha: 0.8,
+                            }),
+                            border_color: BorderColor(Color::Rgba {
+                                red: 0.2,
+                                green: 0.2,
+                                blue: 0.2,
+                                alpha: 0.9,
+                            }),
                             ..default()
                         },
-                        background_color: BackgroundColor(Color::Rgba {
-                            red: 0.1,
-                            green: 0.1,
-                            blue: 0.1,
-                            alpha: 0.8,
-                        }),
-                        border_color: BorderColor(Color::Rgba {
-                            red: 0.2,
-                            green: 0.2,
-                            blue: 0.2,
-                            alpha: 0.9,
-                        }),
-                        ..default()
-                    }, RulesPlanel))
+                        Panel("Rules".to_string()),
+                    ))
                     // Content
                     .with_children(|rules_panel| {
                         // Title
@@ -183,19 +179,33 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
                                 }
                             });
                     });
-                rules_panel.spawn((
-                    ImageBundle {
+                // Icons
+                info_panel
+                    .spawn(NodeBundle {
                         style: Style {
-                            width: Val::Px(32.),
-                            height: Val::Px(32.),
-                            margin: UiRect::all(Val::Px(2.)),
+                            width: Val::Px(36.),
+                            height: Val::Percent(100.),
+                            flex_direction: FlexDirection::Column,
                             ..default()
                         },
-                        image: UiImage::new(asset_server.load("rules_icon.png")),
                         ..default()
-                    },
-                    RulesPlanelToggle,
-                ));
+                    })
+                    .with_children(|icon_section| {
+                        // Rules Icon
+                        icon_section.spawn((
+                            ImageBundle {
+                                style: Style {
+                                    width: Val::Px(32.),
+                                    height: Val::Px(32.),
+                                    margin: UiRect::all(Val::Px(2.)),
+                                    ..default()
+                                },
+                                image: UiImage::new(asset_server.load("rules_icon.png")),
+                                ..default()
+                            },
+                            PanelToggle(Panel("Rules".to_string())),
+                        ));
+                    });
             });
         });
 }
@@ -299,8 +309,8 @@ fn is_in_square(pos: Vec2, center: Vec2, side_length: Vec2) -> bool {
 }
 
 fn toggle_menu(
-    toggle_button: Query<&GlobalTransform, With<RulesPlanelToggle>>,
-    mut rules_panel: Query<&mut Style, With<RulesPlanel>>,
+    toggle_buttons: Query<(&GlobalTransform, &PanelToggle)>,
+    mut panels: Query<(&mut Style, &Panel)>,
     mouse: Res<Input<MouseButton>>,
     windows: Query<&Window>,
 ) {
@@ -310,20 +320,19 @@ fn toggle_menu(
         return;
     }
     let mouse_pos = mouse_pos.unwrap();
-    let button_transform = toggle_button.single();
 
-    if is_in_square(
-        mouse_pos,
-        button_transform.translation().xy(),
-        Vec2::splat(32.),
-    ) {
-        let mut rules_panel = rules_panel.single_mut();
-        let state = rules_panel.display == Display::Flex;
-        match state {
-            true => rules_panel.display = Display::None,
-            false => rules_panel.display = Display::Flex
+    toggle_buttons.iter().for_each(|(transform, toggle)| {
+        if is_in_square(mouse_pos, transform.translation().xy(), Vec2::splat(32.)) {
+            let panel = panels.iter_mut().find(|(_, panel)| **panel == toggle.0);
+            if let Some((mut style, _)) = panel {
+                let state = style.display == Display::Flex;
+                match state {
+                    true => style.display = Display::None,
+                    false => style.display = Display::Flex,
+                }
+            }
         }
-    }
+    });
 }
 
 fn handle_rule_text(mut items: Query<(&mut Text, &RuleListText)>, mut world: ResMut<World>) {
