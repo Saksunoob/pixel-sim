@@ -426,6 +426,7 @@ pub enum RuleType {
     Rule {
         name: String,
         enabled: bool,
+        parent_enabled: bool,
         condition: Condition,
         rule_outcome: Vec<(IVec2, RuleOutcome)>,
         priority: Math,
@@ -433,6 +434,7 @@ pub enum RuleType {
     CompoundRule {
         name: String,
         enabled: bool,
+        parent_enabled: bool,
         rules: Vec<RuleType>,
     },
 }
@@ -446,6 +448,21 @@ impl RuleType {
 
     pub fn enabled(&self) -> bool {
         match self {
+            RuleType::Rule {
+                enabled,
+                parent_enabled,
+                ..
+            } => *enabled && *parent_enabled,
+            RuleType::CompoundRule {
+                enabled,
+                parent_enabled,
+                ..
+            } => *enabled && *parent_enabled,
+        }
+    }
+
+    pub fn self_enabled(&self) -> bool {
+        match self {
             RuleType::Rule { enabled, .. } => *enabled,
             RuleType::CompoundRule { enabled, .. } => *enabled,
         }
@@ -454,7 +471,33 @@ impl RuleType {
     pub fn set_enabled(&mut self, value: bool) {
         match self {
             RuleType::Rule { enabled, .. } => *enabled = value,
-            RuleType::CompoundRule { enabled, .. } => *enabled = value,
+            RuleType::CompoundRule {
+                enabled,
+                parent_enabled,
+                rules,
+                ..
+            } => {
+                *enabled = value;
+                rules
+                    .iter_mut()
+                    .for_each(|child| child.set_parent_enabled(*parent_enabled && *enabled))
+            }
+        }
+    }
+    fn set_parent_enabled(&mut self, value: bool) {
+        match self {
+            RuleType::Rule { parent_enabled, .. } => *parent_enabled = value,
+            RuleType::CompoundRule {
+                parent_enabled,
+                enabled,
+                rules,
+                ..
+            } => {
+                *parent_enabled = value;
+                rules
+                    .iter_mut()
+                    .for_each(|child| child.set_parent_enabled(*parent_enabled && *enabled))
+            }
         }
     }
 

@@ -37,6 +37,7 @@ pub fn load_rule(rule: &Value) -> Option<RuleType> {
             Some(RuleType::Rule {
                 name,
                 enabled: true,
+                parent_enabled: true,
                 condition,
                 rule_outcome,
                 priority,
@@ -84,6 +85,7 @@ pub fn load_rules(path: &Path) -> Option<Vec<RuleType>> {
                                         .into_iter()
                                         .filter_map(|rule| load_rule(rule))
                                         .collect(),
+                                    parent_enabled: true,
                                 })
                             } else {
                                 // Single rule

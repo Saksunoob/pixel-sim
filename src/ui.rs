@@ -1,18 +1,59 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, utils::HashMap};
 
 use crate::{world::World, RuleType};
 
 pub struct UIPlugin;
 
+#[derive(Resource, Clone)]
+pub struct CheckBox(Handle<Image>, Handle<Image>);
+impl CheckBox {
+    pub fn get_handle(&self, checked: bool) -> Handle<Image> {
+        if checked {
+            self.1.clone()
+        } else {
+            self.0.clone()
+        }
+    }
+}
+
+#[derive(Resource, Clone)]
+pub struct Fonts(HashMap<String, Handle<Font>>);
+
+impl Fonts {
+    pub fn new() -> Self {
+        Self(HashMap::new())
+    }
+    pub fn add_font<S>(&mut self, font_name: S, handle: Handle<Font>)
+    where
+        S: ToString,
+    {
+        self.0.insert(font_name.to_string(), handle);
+    }
+    pub fn get_font<S>(&self, font_name: S) -> Option<Handle<Font>>
+    where
+        S: ToString,
+    {
+        self.0.get(&font_name.to_string()).cloned()
+    }
+}
+
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
         app.add_systems(Startup, setup)
-            .add_systems(Update, handle_rule_clicks);
+            .add_systems(Update, (handle_rule_clicks, handle_rule_text));
     }
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<World>) {
-    let roboto = asset_server.load("Roboto-Black.ttf");
+    let mut fonts = Fonts::new();
+    fonts.add_font("Roboto", asset_server.load("Roboto-Black.ttf"));
+    commands.insert_resource(fonts.clone());
+
+    let checkbox = CheckBox(
+        asset_server.load("checkbox_unchecked.png"),
+        asset_server.load("checkbox_checked.png"),
+    );
+    commands.insert_resource(checkbox.clone());
 
     commands
         .spawn(NodeBundle {
@@ -60,7 +101,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
                     text: Text::from_section(
                         "Rules",
                         TextStyle {
-                            font: roboto.clone(),
+                            font: fonts.get_font("Roboto").unwrap_or_default(),
                             font_size: 30.,
                             color: Color::WHITE,
                         },
@@ -83,10 +124,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
                         for (index, rule) in world.ruleset.rules.iter().enumerate() {
                             match rule {
                                 RuleType::Rule { name, .. } => {
-                                    spawn_list_rule(list, name, (index, 0), 0, &roboto)
+                                    spawn_list_rule(list, name, (index, 0), 0, &fonts, &checkbox)
                                 }
                                 RuleType::CompoundRule { name, rules, .. } => {
-                                    spawn_list_rule(list, name, (index, 0), 0, &roboto);
+                                    spawn_list_rule(list, name, (index, 0), 0, &fonts, &checkbox);
 
                                     for (lower_index, rule) in rules.iter().enumerate() {
                                         spawn_list_rule(
@@ -94,7 +135,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
                                             rule.get_name(),
                                             (index, lower_index + 1),
                                             1,
-                                            &roboto,
+                                            &fonts,
+                                            &checkbox,
                                         );
                                     }
                                 }
@@ -108,12 +150,16 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
 #[derive(Component)]
 struct RuleListCheckbox((usize, usize));
 
+#[derive(Component)]
+struct RuleListText((usize, usize));
+
 fn spawn_list_rule(
     list: &mut ChildBuilder<'_, '_, '_>,
     name: &str,
     index: (usize, usize),
     indent: u64,
-    font: &Handle<Font>,
+    fonts: &Fonts,
+    check_box: &CheckBox,
 ) {
     list.spawn(NodeBundle {
         style: Style {
@@ -127,60 +173,43 @@ fn spawn_list_rule(
     .with_children(|row| {
         //Checkbox
         row.spawn((
-            NodeBundle {
+            ImageBundle {
                 style: Style {
-                    margin: UiRect::new(Val::Px(0.), Val::Px(4.), Val::Px(2.), Val::Px(2.)),
                     width: Val::Px(16.),
                     height: Val::Px(16.),
-                    padding: UiRect::all(Val::Auto),
-                    border: UiRect::all(Val::Px(2.)),
+                    margin: UiRect::all(Val::Px(2.)),
                     ..default()
                 },
-                border_color: BorderColor(Color::rgb(0.2, 0.2, 0.2)),
-                background_color: BackgroundColor(Color::rgb(0.3, 0.3, 0.3)),
+                image: UiImage::new(check_box.get_handle(true)),
                 ..default()
             },
             RuleListCheckbox(index),
-        ))
-        .with_children(|container| {
-            container.spawn(TextBundle {
+        ));
+        // Rule name
+        row.spawn((
+            TextBundle {
                 style: Style {
-                    margin: UiRect::all(Val::Auto),
+                    margin: UiRect::vertical(Val::Auto),
                     ..default()
                 },
                 text: Text::from_section(
-                    "X",
+                    name,
                     TextStyle {
-                        font: font.clone(),
+                        font: fonts.get_font("Roboto").unwrap_or_default(),
                         font_size: 16.,
                         color: Color::WHITE,
                     },
                 ),
                 ..default()
-            });
-        });
-
-        row.spawn(TextBundle {
-            style: Style {
-                margin: UiRect::vertical(Val::Auto),
-                ..default()
             },
-            text: Text::from_section(
-                name,
-                TextStyle {
-                    font: font.clone(),
-                    font_size: 16.,
-                    color: Color::WHITE,
-                },
-            ),
-            ..default()
-        });
+            RuleListText(index),
+        ));
     });
 }
 
 fn handle_rule_clicks(
-    check_boxes: Query<(&GlobalTransform, &Children, &RuleListCheckbox)>,
-    mut texts: Query<&mut Text>,
+    mut check_boxes: Query<(&GlobalTransform, &mut UiImage, &RuleListCheckbox)>,
+    checkbox_res: Res<CheckBox>,
     mut world: ResMut<World>,
     mouse: Res<Input<MouseButton>>,
     windows: Query<&Window>,
@@ -190,20 +219,38 @@ fn handle_rule_clicks(
         Some(pos) => pos,
         None => Vec2::new(0., 0.),
     };
-    for (transform, children, check_box) in check_boxes.iter() {
+    for (transform, mut image, check_box) in check_boxes.iter_mut() {
         if mouse.just_pressed(MouseButton::Left)
             && transform.translation().truncate().distance(click_pos) <= 10.
         {
-            let child = children.first().unwrap();
-            let mut text = texts.get_mut(*child).unwrap();
             let rule = world.ruleset.get_index_mut(check_box.0).unwrap();
-            text.sections[0].value = if rule.enabled() {
+            if rule.self_enabled() {
                 rule.set_enabled(false);
-                " ".to_string()
+                image.texture = checkbox_res.get_handle(false);
             } else {
                 rule.set_enabled(true);
-                "X".to_string()
-            };
+                image.texture = checkbox_res.get_handle(true);
+            }
+        }
+    }
+}
+
+fn handle_rule_text(mut items: Query<(&mut Text, &RuleListText)>, mut world: ResMut<World>) {
+    const ENABLED_COLOR: Color = Color::WHITE;
+    const DISABLED_COLOR: Color = Color::GRAY;
+
+    for (mut text, rule_index) in items.iter_mut() {
+        let rule = world.ruleset.get_index_mut(rule_index.0).unwrap();
+
+        match rule.enabled() {
+            true => text
+                .sections
+                .iter_mut()
+                .for_each(|section| section.style.color = ENABLED_COLOR),
+            false => text
+                .sections
+                .iter_mut()
+                .for_each(|section| section.style.color = DISABLED_COLOR),
         }
     }
 }
