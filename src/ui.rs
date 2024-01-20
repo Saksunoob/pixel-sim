@@ -1,4 +1,9 @@
-use bevy::{prelude::*, utils::HashMap};
+use std::borrow::Borrow;
+
+use bevy::{
+    prelude::*,
+    utils::HashMap,
+};
 
 use crate::{world::World, RuleType};
 
@@ -103,12 +108,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
                                 blue: 0.1,
                                 alpha: 0.8,
                             }),
-                            border_color: BorderColor(Color::Rgba {
-                                red: 0.2,
-                                green: 0.2,
-                                blue: 0.2,
-                                alpha: 0.9,
-                            }),
+                            border_color: BorderColor(Color::WHITE),
                             ..default()
                         },
                         Panel("Rules".to_string()),
@@ -183,7 +183,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
                 info_panel
                     .spawn(NodeBundle {
                         style: Style {
-                            width: Val::Px(36.),
+                            width: Val::Px(32.),
                             height: Val::Percent(100.),
                             flex_direction: FlexDirection::Column,
                             ..default()
@@ -191,48 +191,54 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
                         ..default()
                     })
                     .with_children(|icon_section| {
-                        // Rules Icon
-                        icon_section.spawn((
-                            ImageBundle {
-                                style: Style {
-                                    width: Val::Px(32.),
-                                    height: Val::Px(32.),
-                                    margin: UiRect::all(Val::Px(2.)),
-                                    ..default()
-                                },
-                                image: UiImage::new(asset_server.load("rules_icon.png")),
-                                ..default()
-                            },
-                            PanelToggle(Panel("Rules".to_string())),
-                        ));
-                        // Elements Icon
-                        icon_section.spawn((
-                            ImageBundle {
-                                style: Style {
-                                    width: Val::Px(32.),
-                                    height: Val::Px(32.),
-                                    margin: UiRect::all(Val::Px(2.)),
-                                    ..default()
-                                },
-                                image: UiImage::new(asset_server.load("elements_icon.png")),
-                                ..default()
-                            },
-                            PanelToggle(Panel("Elements".to_string())),
-                        ));
-                        // Pixel info Icon
-                        icon_section.spawn((
-                            ImageBundle {
-                                style: Style {
-                                    width: Val::Px(32.),
-                                    height: Val::Px(32.),
-                                    margin: UiRect::all(Val::Px(2.)),
-                                    ..default()
-                                },
-                                image: UiImage::new(asset_server.load("pixel_info_icon.png")),
-                                ..default()
-                            },
-                            PanelToggle(Panel("PixelInfo".to_string())),
-                        ));
+                        let spawn_icon =
+                            |icon_section: &mut ChildBuilder<'_, '_, '_>,
+                             name: &str,
+                             icon: Handle<Image>| {
+                                icon_section
+                                    .spawn((
+                                        NodeBundle {
+                                            style: Style {
+                                                overflow: Overflow::clip_x(),
+                                                width: Val::Px(16.),
+                                                height: Val::Px(32.),
+                                                margin: UiRect::new(
+                                                    Val::Px(0.),
+                                                    Val::Px(0.),
+                                                    Val::Px(2.),
+                                                    Val::Px(2.),
+                                                ),
+                                                justify_content: JustifyContent::End,
+                                                ..default()
+                                            },
+                                            ..default()
+                                        },
+                                        PanelToggle(Panel(name.to_string())),
+                                    ))
+                                    .with_children(|icon_section| {
+                                        icon_section.spawn(ImageBundle {
+                                            style: Style {
+                                                width: Val::Px(32.),
+                                                height: Val::Px(32.),
+                                                ..default()
+                                            },
+                                            image: UiImage::new(icon),
+                                            ..default()
+                                        });
+                                    });
+                            };
+
+                        spawn_icon(icon_section, "Rules", asset_server.load("rules_icon.png"));
+                        spawn_icon(
+                            icon_section,
+                            "Elements",
+                            asset_server.load("elements_icon.png"),
+                        );
+                        spawn_icon(
+                            icon_section,
+                            "PixelInfo",
+                            asset_server.load("pixel_info_icon.png"),
+                        );
                     });
             });
         });
@@ -337,30 +343,55 @@ fn is_in_square(pos: Vec2, center: Vec2, side_length: Vec2) -> bool {
 }
 
 fn toggle_menu(
-    toggle_buttons: Query<(&GlobalTransform, &PanelToggle)>,
+    mut toggle_buttons: Query<(&GlobalTransform, &mut Style, &PanelToggle), Without<Panel>>,
     mut panels: Query<(&mut Style, &Panel)>,
     mouse: Res<Input<MouseButton>>,
     windows: Query<&Window>,
 ) {
     let window = windows.single();
     let mouse_pos = window.cursor_position();
-    if mouse_pos.is_none() || !mouse.just_pressed(MouseButton::Left) {
+    if mouse_pos.is_none() {
         return;
     }
     let mouse_pos = mouse_pos.unwrap();
 
-    toggle_buttons.iter().for_each(|(transform, toggle)| {
-        if is_in_square(mouse_pos, transform.translation().xy(), Vec2::splat(32.)) {
+    toggle_buttons
+        .iter_mut()
+        .for_each(|(transform, mut style, toggle)| {
             let panel = panels.iter_mut().find(|(_, panel)| **panel == toggle.0);
-            if let Some((mut style, _)) = panel {
-                let state = style.display == Display::Flex;
-                match state {
-                    true => style.display = Display::None,
-                    false => style.display = Display::Flex,
+            let state = if let Some((style, _)) = panel.borrow() {
+                style.display == Display::Flex
+            } else {
+                false
+            };
+
+            let width = if let Val::Px(width) = style.width {
+                width
+            } else {
+                32.
+            };
+            if is_in_square(
+                mouse_pos,
+                transform.translation().xy(),
+                Vec2::new(width, 32.),
+            ) || state
+            {
+                style.width = Val::Px(32.);
+            } else {
+                style.width = Val::Px(16.);
+            }
+
+            if is_in_square(mouse_pos, transform.translation().xy(), Vec2::splat(32.))
+                && mouse.just_pressed(MouseButton::Left)
+            {
+                if let Some((mut panel_style, _)) = panel {
+                    match state {
+                        true => panel_style.display = Display::None,
+                        false => panel_style.display = Display::Flex,
+                    }
                 }
             }
-        }
-    });
+        });
 }
 
 fn handle_rule_text(mut items: Query<(&mut Text, &RuleListText)>, mut world: ResMut<World>) {
