@@ -205,6 +205,34 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
                             },
                             PanelToggle(Panel("Rules".to_string())),
                         ));
+                        // Elements Icon
+                        icon_section.spawn((
+                            ImageBundle {
+                                style: Style {
+                                    width: Val::Px(32.),
+                                    height: Val::Px(32.),
+                                    margin: UiRect::all(Val::Px(2.)),
+                                    ..default()
+                                },
+                                image: UiImage::new(asset_server.load("elements_icon.png")),
+                                ..default()
+                            },
+                            PanelToggle(Panel("Elements".to_string())),
+                        ));
+                        // Pixel info Icon
+                        icon_section.spawn((
+                            ImageBundle {
+                                style: Style {
+                                    width: Val::Px(32.),
+                                    height: Val::Px(32.),
+                                    margin: UiRect::all(Val::Px(2.)),
+                                    ..default()
+                                },
+                                image: UiImage::new(asset_server.load("pixel_info_icon.png")),
+                                ..default()
+                            },
+                            PanelToggle(Panel("PixelInfo".to_string())),
+                        ));
                     });
             });
         });
