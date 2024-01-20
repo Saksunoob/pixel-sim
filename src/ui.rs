@@ -1,6 +1,6 @@
 use bevy::{prelude::*, utils::HashMap};
 
-use crate::{world::World, RuleType};
+use crate::{world::World, Math, RuleType};
 
 pub struct UIPlugin;
 
@@ -37,10 +37,21 @@ impl Fonts {
     }
 }
 
+#[derive(Resource, Clone, Copy)]
+pub struct UIVisibility {
+    rules_menu: bool,
+}
+
+#[derive(Component)]
+pub struct RulesPlanelToggle;
+
+#[derive(Component)]
+pub struct RulesPlanel;
+
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
         app.add_systems(Startup, setup)
-            .add_systems(Update, (handle_rule_clicks, handle_rule_text));
+            .add_systems(Update, (handle_rule_clicks, handle_rule_text, toggle_menu));
     }
 }
 
@@ -48,6 +59,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
     let mut fonts = Fonts::new();
     fonts.add_font("Roboto", asset_server.load("Roboto-Black.ttf"));
     commands.insert_resource(fonts.clone());
+    let ui_visibility = UIVisibility { rules_menu: false };
+    commands.insert_resource(ui_visibility);
 
     let checkbox = CheckBox(
         asset_server.load("checkbox_unchecked.png"),
@@ -66,83 +79,123 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
             ..default()
         })
         .with_children(|ui| {
-            // Simulation information
+            // Rules panel
             ui.spawn(NodeBundle {
                 style: Style {
-                    width: Val::Percent(20.0),
+                    width: Val::Auto,
                     height: Val::Percent(100.0),
                     align_self: AlignSelf::End,
-                    flex_direction: FlexDirection::Column,
-                    border: UiRect::right(Val::Px(2.)),
+                    flex_direction: FlexDirection::Row,
                     ..default()
                 },
-                background_color: BackgroundColor(Color::Rgba {
-                    red: 0.1,
-                    green: 0.1,
-                    blue: 0.1,
-                    alpha: 0.8,
-                }),
-                border_color: BorderColor(Color::Rgba {
-                    red: 0.2,
-                    green: 0.2,
-                    blue: 0.2,
-                    alpha: 0.9,
-                }),
                 ..default()
             })
-            // Rules panel
             .with_children(|rules_panel| {
-                // Title
-                rules_panel.spawn(TextBundle {
-                    style: Style {
-                        margin: UiRect::horizontal(Val::Auto),
-                        ..default()
-                    },
-                    text: Text::from_section(
-                        "Rules",
-                        TextStyle {
-                            font: fonts.get_font("Roboto").unwrap_or_default(),
-                            font_size: 30.,
-                            color: Color::WHITE,
-                        },
-                    ),
-                    ..default()
-                });
-                // List
+                // Rules panel content
                 rules_panel
-                    .spawn(NodeBundle {
+                    .spawn((NodeBundle {
                         style: Style {
+                            display: Display::None,
+                            width: Val::Vw(20.),
+                            height: Val::Percent(100.0),
+                            align_self: AlignSelf::End,
                             flex_direction: FlexDirection::Column,
-                            height: Val::Auto,
-                            padding: UiRect::horizontal(Val::Px(5.)),
-                            overflow: Overflow::clip_y(),
+                            border: UiRect::right(Val::Px(2.)),
                             ..default()
                         },
+                        background_color: BackgroundColor(Color::Rgba {
+                            red: 0.1,
+                            green: 0.1,
+                            blue: 0.1,
+                            alpha: 0.8,
+                        }),
+                        border_color: BorderColor(Color::Rgba {
+                            red: 0.2,
+                            green: 0.2,
+                            blue: 0.2,
+                            alpha: 0.9,
+                        }),
                         ..default()
-                    })
-                    .with_children(|list| {
-                        for (index, rule) in world.ruleset.rules.iter().enumerate() {
-                            match rule {
-                                RuleType::Rule { name, .. } => {
-                                    spawn_list_rule(list, name, (index, 0), 0, &fonts, &checkbox)
-                                }
-                                RuleType::CompoundRule { name, rules, .. } => {
-                                    spawn_list_rule(list, name, (index, 0), 0, &fonts, &checkbox);
-
-                                    for (lower_index, rule) in rules.iter().enumerate() {
-                                        spawn_list_rule(
+                    }, RulesPlanel))
+                    // Content
+                    .with_children(|rules_panel| {
+                        // Title
+                        rules_panel.spawn(TextBundle {
+                            style: Style {
+                                margin: UiRect::horizontal(Val::Auto),
+                                ..default()
+                            },
+                            text: Text::from_section(
+                                "Rules",
+                                TextStyle {
+                                    font: fonts.get_font("Roboto").unwrap_or_default(),
+                                    font_size: 30.,
+                                    color: Color::WHITE,
+                                },
+                            ),
+                            ..default()
+                        });
+                        // List
+                        rules_panel
+                            .spawn(NodeBundle {
+                                style: Style {
+                                    flex_direction: FlexDirection::Column,
+                                    height: Val::Auto,
+                                    padding: UiRect::horizontal(Val::Px(5.)),
+                                    overflow: Overflow::clip_y(),
+                                    ..default()
+                                },
+                                ..default()
+                            })
+                            .with_children(|list| {
+                                for (index, rule) in world.ruleset.rules.iter().enumerate() {
+                                    match rule {
+                                        RuleType::Rule { name, .. } => spawn_list_rule(
                                             list,
-                                            rule.get_name(),
-                                            (index, lower_index + 1),
-                                            1,
+                                            name,
+                                            (index, 0),
+                                            0,
                                             &fonts,
                                             &checkbox,
-                                        );
+                                        ),
+                                        RuleType::CompoundRule { name, rules, .. } => {
+                                            spawn_list_rule(
+                                                list,
+                                                name,
+                                                (index, 0),
+                                                0,
+                                                &fonts,
+                                                &checkbox,
+                                            );
+
+                                            for (lower_index, rule) in rules.iter().enumerate() {
+                                                spawn_list_rule(
+                                                    list,
+                                                    rule.get_name(),
+                                                    (index, lower_index + 1),
+                                                    1,
+                                                    &fonts,
+                                                    &checkbox,
+                                                );
+                                            }
+                                        }
                                     }
                                 }
-                            }
-                        }
+                            });
                     });
+                rules_panel.spawn((
+                    ImageBundle {
+                        style: Style {
+                            width: Val::Px(32.),
+                            height: Val::Px(32.),
+                            margin: UiRect::all(Val::Px(2.)),
+                            ..default()
+                        },
+                        image: UiImage::new(asset_server.load("rules_icon.png")),
+                        ..default()
+                    },
+                    RulesPlanelToggle,
+                ));
             });
         });
 }
@@ -215,14 +268,18 @@ fn handle_rule_clicks(
     windows: Query<&Window>,
 ) {
     let window = windows.single();
-    let click_pos = match window.cursor_position() {
-        Some(pos) => pos,
-        None => Vec2::new(0., 0.),
-    };
+    let mouse_pos = window.cursor_position();
+    if mouse_pos.is_none() || !mouse.just_pressed(MouseButton::Left) {
+        return;
+    }
+    let mouse_pos = mouse_pos.unwrap();
+
     for (transform, mut image, check_box) in check_boxes.iter_mut() {
-        if mouse.just_pressed(MouseButton::Left)
-            && transform.translation().truncate().distance(click_pos) <= 10.
-        {
+        if is_in_square(
+            mouse_pos,
+            transform.translation().truncate(),
+            Vec2::splat(16.),
+        ) {
             let rule = world.ruleset.get_index_mut(check_box.0).unwrap();
             if rule.self_enabled() {
                 rule.set_enabled(false);
@@ -231,6 +288,40 @@ fn handle_rule_clicks(
                 rule.set_enabled(true);
                 image.texture = checkbox_res.get_handle(true);
             }
+        }
+    }
+}
+
+fn is_in_square(pos: Vec2, center: Vec2, side_length: Vec2) -> bool {
+    let dx = (pos.x - center.x).abs();
+    let dy = (pos.y - center.y).abs();
+    return dx <= side_length.x / 2. && dy <= side_length.y / 2.;
+}
+
+fn toggle_menu(
+    toggle_button: Query<&GlobalTransform, With<RulesPlanelToggle>>,
+    mut rules_panel: Query<&mut Style, With<RulesPlanel>>,
+    mouse: Res<Input<MouseButton>>,
+    windows: Query<&Window>,
+) {
+    let window = windows.single();
+    let mouse_pos = window.cursor_position();
+    if mouse_pos.is_none() || !mouse.just_pressed(MouseButton::Left) {
+        return;
+    }
+    let mouse_pos = mouse_pos.unwrap();
+    let button_transform = toggle_button.single();
+
+    if is_in_square(
+        mouse_pos,
+        button_transform.translation().xy(),
+        Vec2::splat(32.),
+    ) {
+        let mut rules_panel = rules_panel.single_mut();
+        let state = rules_panel.display == Display::Flex;
+        match state {
+            true => rules_panel.display = Display::None,
+            false => rules_panel.display = Display::Flex
         }
     }
 }
