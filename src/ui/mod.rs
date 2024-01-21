@@ -4,7 +4,8 @@ use bevy::{prelude::*, utils::HashMap};
 
 use crate::world::World;
 
-pub mod rules;
+mod rules;
+mod elements;
 
 pub struct UIPlugin;
 
@@ -96,6 +97,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
             })
             .with_children(|info_panel| {
                 rules::spawn_rules_panel(info_panel, &fonts, &world, &checkbox);
+                elements::spawn_elements_panel(info_panel, &fonts, &world, &asset_server);
 
                 // Icons
                 info_panel

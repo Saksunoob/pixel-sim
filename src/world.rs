@@ -31,6 +31,7 @@ impl Plugin for WorldPlugin {
 }
 #[derive(Resource, Clone)]
 pub struct World {
+    names: Vec<String>,
     bits: HashMap<String, TagSpace>,
     world_size: i32,
     pub ruleset: Ruleset,
@@ -40,14 +41,14 @@ pub struct World {
 impl World {
     pub fn new(size: usize, elements: Elements, ruleset: Ruleset) -> Self {
         let mut bits = HashMap::new();
-        elements.elements.iter().for_each(|(_, tags)| {
-            tags.iter().for_each(|(tag, _)| {
+        elements.elements.iter().for_each(|(_, element)| {
+            element.tags.iter().for_each(|(tag, _)| {
                 if !bits.contains_key(tag) {
                     bits.insert(
                         tag.to_string(),
                         TagSpace::new_with_value(
                             elements
-                                .get(elements.default)
+                                .get(elements.default).tags
                                 .into_iter()
                                 .collect::<HashMap<String, TagValue>>()
                                 .get(tag)
@@ -59,8 +60,12 @@ impl World {
                 }
             })
         });
+        let names = vec![elements.get(elements.default).name; size*size];
+
+
 
         Self {
+            names,
             bits,
             world_size: size as i32,
             ruleset,
@@ -173,12 +178,12 @@ fn update(
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Element {
     pub name: String,
-    pub tags: HashMap<String, TagValue>,
+    pub tags: Vec<(String, TagValue)>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Elements {
-    elements: HashMap<u64, Vec<(String, TagValue)>>,
+    pub elements: HashMap<u64, Element>,
     default: u64,
 }
 impl Elements {
@@ -191,17 +196,13 @@ impl Elements {
                     (
                         hash(&element.name),
                         element
-                            .tags
-                            .into_iter()
-                            .map(|(tag, value)| (tag.to_string(), value))
-                            .collect(),
                     )
                 })
                 .collect(),
             default,
         }
     }
-    pub fn get(&self, element: u64) -> Vec<(String, TagValue)> {
+    pub fn get(&self, element: u64) -> Element {
         self.elements.get(&element).cloned().unwrap_or_else(|| {
             eprintln!("unable to get element {element}");
             self.elements.get(&self.default).cloned().unwrap()
@@ -212,7 +213,7 @@ impl Elements {
             self.elements.get(&el).cloned().unwrap_or_else(|| {
                 eprintln!("unable to get element {el}");
                 self.elements.get(&self.default).cloned().unwrap()
-            })
+            }).tags
         } else {
             Vec::new()
         }
