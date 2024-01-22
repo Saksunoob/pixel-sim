@@ -1,4 +1,4 @@
-use crate::{world::World, tags::TagValue};
+use crate::{tags::TagValue, world::World};
 use bevy::{prelude::*, render::render_resource::Extent3d};
 
 use super::{Fonts, Panel};
@@ -7,7 +7,7 @@ pub fn spawn_elements_panel(
     info_panel: &mut ChildBuilder<'_, '_, '_>,
     fonts: &Fonts,
     world: &Res<World>,
-    asset_server: &Res<AssetServer>
+    asset_server: &Res<AssetServer>,
 ) {
     info_panel
         .spawn((
@@ -64,15 +64,20 @@ pub fn spawn_elements_panel(
                 })
                 .with_children(|list| {
                     for element in world.elements.elements.iter() {
-                        let color_tag = element.1.tags.iter().find(|(tag, _)| tag=="color");
+                        let color_tag = element.1.tags.iter().find(|(tag, _)| tag == "color");
                         let color = match color_tag {
                             Some((_, value)) => {
                                 if let TagValue::Integer(value) = value {
-                                    [(value >> 16) as u8 as f32, (value >> 8) as u8 as f32, *value as u8 as f32, 255 as f32]
+                                    [
+                                        (value >> 16) as u8 as f32,
+                                        (value >> 8) as u8 as f32,
+                                        *value as u8 as f32,
+                                        255 as f32,
+                                    ]
                                 } else {
                                     Color::PURPLE.as_rgba_f32()
                                 }
-                            },
+                            }
                             None => todo!(),
                         };
                         spawn_list_element(list, &element.1.name, fonts, &color, asset_server);
@@ -86,7 +91,7 @@ fn spawn_list_element(
     name: &str,
     fonts: &Fonts,
     color: &[f32; 4],
-    asset_server: &Res<AssetServer>
+    asset_server: &Res<AssetServer>,
 ) {
     list.spawn(NodeBundle {
         style: Style {
@@ -97,38 +102,42 @@ fn spawn_list_element(
         ..default()
     })
     .with_children(|row| {
-        let data: Vec<u8> = (0..4).flat_map(|index| (color[index]/255.).to_ne_bytes()).collect();
-        let image = Image::new_fill(Extent3d::default(), bevy::render::render_resource::TextureDimension::D2, data.as_slice(), bevy::render::render_resource::TextureFormat::Rgba32Float);
+        let data: Vec<u8> = (0..4)
+            .flat_map(|index| (color[index] / 255.).to_ne_bytes())
+            .collect();
+        let image = Image::new_fill(
+            Extent3d::default(),
+            bevy::render::render_resource::TextureDimension::D2,
+            data.as_slice(),
+            bevy::render::render_resource::TextureFormat::Rgba32Float,
+        );
 
         // Color
-        row.spawn(
-            ImageBundle {
-                style: Style {
-                    width: Val::Px(16.),
-                    height: Val::Px(16.),
-                    margin: UiRect::all(Val::Px(2.)),
-                    ..default()
-                },
-                image: UiImage::new(asset_server.add(image)),
+        row.spawn(ImageBundle {
+            style: Style {
+                width: Val::Px(16.),
+                height: Val::Px(16.),
+                margin: UiRect::all(Val::Px(2.)),
                 ..default()
-            }
-        );
+            },
+            image: UiImage::new(asset_server.add(image)),
+            ..default()
+        });
         // Element name
-        row.spawn(
-            TextBundle {
-                style: Style {
-                    margin: UiRect::vertical(Val::Auto),
-                    ..default()
-                },
-                text: Text::from_section(
-                    name,
-                    TextStyle {
-                        font: fonts.get_font("Roboto"),
-                        font_size: 16.,
-                        color: Color::WHITE,
-                    },
-                ),
+        row.spawn(TextBundle {
+            style: Style {
+                margin: UiRect::vertical(Val::Auto),
                 ..default()
-            });
+            },
+            text: Text::from_section(
+                name,
+                TextStyle {
+                    font: fonts.get_font("Roboto"),
+                    font_size: 16.,
+                    color: Color::WHITE,
+                },
+            ),
+            ..default()
+        });
     });
 }

@@ -33,7 +33,7 @@ impl Plugin for WorldPlugin {
 pub struct World {
     names: Vec<String>,
     bits: HashMap<String, TagSpace>,
-    world_size: i32,
+    pub world_size: i32,
     pub ruleset: Ruleset,
     pub elements: Elements,
 }
@@ -48,7 +48,8 @@ impl World {
                         tag.to_string(),
                         TagSpace::new_with_value(
                             elements
-                                .get(elements.default).tags
+                                .get(elements.default)
+                                .tags
                                 .into_iter()
                                 .collect::<HashMap<String, TagValue>>()
                                 .get(tag)
@@ -60,9 +61,7 @@ impl World {
                 }
             })
         });
-        let names = vec![elements.get(elements.default).name; size*size];
-
-
+        let names = vec![elements.get(elements.default).name; size * size];
 
         Self {
             names,
@@ -124,13 +123,16 @@ impl Simulation {
     }
 }
 
+#[derive(Component)]
+struct PixelGrid;
+
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let image = Image::default();
     let image_handle = asset_server.add(image);
     commands.insert_resource(GameScreen(image_handle.clone(), Rect::default()));
     commands.insert_resource(Simulation::new());
 
-    commands.spawn(SpriteBundle {
+    commands.spawn((SpriteBundle {
         sprite: Sprite {
             anchor: bevy::sprite::Anchor::Center,
             custom_size: Some(Vec2::splat(1.0)),
@@ -139,7 +141,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         transform: Transform::from_xyz(0., 0., 0.),
         texture: image_handle,
         ..default()
-    });
+    }, PixelGrid));
 }
 
 fn simulation_step(
@@ -157,13 +159,13 @@ fn update(
     game_screen: ResMut<GameScreen>,
     mut images: ResMut<Assets<Image>>,
     world: Res<World>,
-    mut target: Query<&mut Sprite>,
+    mut target: Query<(&mut Sprite, &PixelGrid)>,
 ) {
     if !world.is_changed() {
         return;
     }
 
-    let mut target = target.single_mut();
+    let (mut target, _) = target.single_mut();
     let image = images.get_mut(game_screen.0.clone());
 
     match image {
@@ -192,12 +194,7 @@ impl Elements {
         Self {
             elements: elements
                 .into_iter()
-                .map(|element| {
-                    (
-                        hash(&element.name),
-                        element
-                    )
-                })
+                .map(|element| (hash(&element.name), element))
                 .collect(),
             default,
         }
@@ -210,10 +207,14 @@ impl Elements {
     }
     pub fn get_el(&self, element: TagValue) -> Vec<(String, TagValue)> {
         if let TagValue::Element(el) = element {
-            self.elements.get(&el).cloned().unwrap_or_else(|| {
-                eprintln!("unable to get element {el}");
-                self.elements.get(&self.default).cloned().unwrap()
-            }).tags
+            self.elements
+                .get(&el)
+                .cloned()
+                .unwrap_or_else(|| {
+                    eprintln!("unable to get element {el}");
+                    self.elements.get(&self.default).cloned().unwrap()
+                })
+                .tags
         } else {
             Vec::new()
         }

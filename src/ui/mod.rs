@@ -6,6 +6,7 @@ use crate::world::World;
 
 mod rules;
 mod elements;
+mod inspector;
 
 pub struct UIPlugin;
 
@@ -56,7 +57,7 @@ pub struct Panel(String);
 
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
-        app.add_plugins(rules::RulePanelPlugin);
+        app.add_plugins((rules::RulePanelPlugin, inspector::InspectorPanelPlugin));
         app.add_systems(Startup, setup)
             .add_systems(Update, toggle_menu);
     }
@@ -98,6 +99,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
             .with_children(|info_panel| {
                 rules::spawn_rules_panel(info_panel, &fonts, &world, &checkbox);
                 elements::spawn_elements_panel(info_panel, &fonts, &world, &asset_server);
+                inspector::spawn_inspector_panel(info_panel, &fonts);
 
                 // Icons
                 info_panel
@@ -156,8 +158,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
                         );
                         spawn_icon(
                             icon_section,
-                            "PixelInfo",
-                            asset_server.load("pixel_info_icon.png"),
+                            "Inspector",
+                            asset_server.load("inspector_icon.png"),
                         );
                     });
             });
