@@ -8,7 +8,6 @@ use crate::hash;
 #[derive(Debug, Copy, Clone, Serialize)]
 pub enum TagValue {
     None,
-    Empty,
     Integer(i64),
     Float(f64),
     Boolean(bool),
@@ -18,7 +17,6 @@ impl TagValue {
     pub fn as_float(&self) -> f64 {
         match self {
             TagValue::None => 0.,
-            TagValue::Empty => 0.,
             TagValue::Integer(i) => *i as f64,
             TagValue::Float(f) => *f,
             TagValue::Boolean(v) => *v as u64 as f64,
@@ -33,7 +31,7 @@ impl PartialEq for TagValue {
             (Self::Float(l0), Self::Float(r0)) => l0 == r0,
             (Self::Boolean(l0), Self::Boolean(r0)) => l0 == r0,
             (Self::Element(l0), Self::Element(r0)) => l0 == r0,
-            (Self::None, Self::None) | (Self::Empty, Self::Empty) => true,
+            (Self::None, Self::None) => true,
             _ => false,
         }
     }
@@ -56,13 +54,8 @@ impl Add for TagValue {
     fn add(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (TagValue::None, TagValue::None) => TagValue::None,
-            (TagValue::Empty, TagValue::Empty)
-            | (TagValue::Empty, TagValue::None)
-            | (TagValue::None, TagValue::Empty) => TagValue::Empty,
-            (TagValue::Empty, other)
-            | (other, TagValue::Empty)
-            | (TagValue::None, other)
-            | (other, TagValue::None) => other,
+
+            (TagValue::None, other) | (other, TagValue::None) => other,
             (TagValue::Integer(v1), TagValue::Integer(v2)) => TagValue::Integer(v1 + v2),
             (TagValue::Integer(v2), TagValue::Float(v1))
             | (TagValue::Float(v1), TagValue::Integer(v2)) => TagValue::Float(v1 + v2 as f64),
@@ -86,19 +79,10 @@ impl Sub for TagValue {
     fn sub(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (TagValue::None, TagValue::None) => TagValue::None,
-            (TagValue::Empty, TagValue::Empty)
-            | (TagValue::Empty, TagValue::None)
-            | (TagValue::None, TagValue::Empty) => TagValue::Empty,
-            (other, TagValue::Empty) | (other, TagValue::None) => other,
-            (TagValue::Empty, TagValue::Float(f)) | (TagValue::None, TagValue::Float(f)) => {
-                TagValue::Float(-f)
-            }
-            (TagValue::Empty, TagValue::Integer(i)) | (TagValue::None, TagValue::Integer(i)) => {
-                TagValue::Integer(-i)
-            }
-            (TagValue::Empty, TagValue::Boolean(b)) | (TagValue::None, TagValue::Boolean(b)) => {
-                TagValue::Boolean(!b)
-            }
+            (other, TagValue::None) => other,
+            (TagValue::None, TagValue::Float(f)) => TagValue::Float(-f),
+            (TagValue::None, TagValue::Integer(i)) => TagValue::Integer(-i),
+            (TagValue::None, TagValue::Boolean(b)) => TagValue::Boolean(!b),
             (TagValue::Integer(v1), TagValue::Integer(v2)) => TagValue::Integer(v1 - v2),
             (TagValue::Integer(v1), TagValue::Float(v2)) => TagValue::Float(v1 as f64 - v2),
             (TagValue::Float(v1), TagValue::Integer(v2)) => TagValue::Float(v1 - v2 as f64),
@@ -120,19 +104,10 @@ impl Mul for TagValue {
     fn mul(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (TagValue::None, TagValue::None) => TagValue::None,
-            (TagValue::Empty, TagValue::Empty)
-            | (TagValue::Empty, TagValue::None)
-            | (TagValue::None, TagValue::Empty) => TagValue::Empty,
-            (_, TagValue::Empty) | (_, TagValue::None) => TagValue::Empty,
-            (TagValue::Empty, TagValue::Float(_)) | (TagValue::None, TagValue::Float(_)) => {
-                TagValue::Float(0.)
-            }
-            (TagValue::Empty, TagValue::Integer(_)) | (TagValue::None, TagValue::Integer(_)) => {
-                TagValue::Integer(0)
-            }
-            (TagValue::Empty, TagValue::Boolean(_)) | (TagValue::None, TagValue::Boolean(_)) => {
-                TagValue::Boolean(false)
-            }
+            (_, TagValue::None) => TagValue::None,
+            (TagValue::None, TagValue::Float(_)) => TagValue::Float(0.),
+            (TagValue::None, TagValue::Integer(_)) => TagValue::Integer(0),
+            (TagValue::None, TagValue::Boolean(_)) => TagValue::Boolean(false),
             (TagValue::Integer(v1), TagValue::Integer(v2)) => TagValue::Integer(v1 * v2),
             (TagValue::Integer(v2), TagValue::Float(v1))
             | (TagValue::Float(v1), TagValue::Integer(v2)) => TagValue::Float(v1 * v2 as f64),
@@ -156,19 +131,10 @@ impl Div for TagValue {
     fn div(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (TagValue::None, TagValue::None) => TagValue::None,
-            (TagValue::Empty, TagValue::Empty)
-            | (TagValue::Empty, TagValue::None)
-            | (TagValue::None, TagValue::Empty) => TagValue::Empty,
-            (_, TagValue::Empty) | (_, TagValue::None) => TagValue::Empty,
-            (TagValue::Empty, TagValue::Float(_)) | (TagValue::None, TagValue::Float(_)) => {
-                TagValue::Float(0.)
-            }
-            (TagValue::Empty, TagValue::Integer(_)) | (TagValue::None, TagValue::Integer(_)) => {
-                TagValue::Integer(0)
-            }
-            (TagValue::Empty, TagValue::Boolean(_)) | (TagValue::None, TagValue::Boolean(_)) => {
-                TagValue::Boolean(false)
-            }
+            (_, TagValue::None) => TagValue::None,
+            (TagValue::None, TagValue::Float(_)) => TagValue::Float(0.),
+            (TagValue::None, TagValue::Integer(_)) => TagValue::Integer(0),
+            (TagValue::None, TagValue::Boolean(_)) => TagValue::Boolean(false),
             (TagValue::Integer(v1), TagValue::Integer(v2)) => TagValue::Integer(v1 / v2),
             (TagValue::Integer(v1), TagValue::Float(v2)) => TagValue::Float(v1 as f64 / v2),
             (TagValue::Float(v1), TagValue::Integer(v2)) => TagValue::Float(v1 / v2 as f64),
@@ -237,9 +203,6 @@ impl<'de> Deserialize<'de> for TagValue {
                     } else {
                         eprintln!("invalid color tag {value}")
                     }
-                }
-                if value == "" {
-                    return Ok(TagValue::Empty);
                 }
                 Ok(TagValue::Element(hash(value)))
             }

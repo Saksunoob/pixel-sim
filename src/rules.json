@@ -97,12 +97,12 @@
     {
         "name": "ignition",
         "condition": ["And", [
-            ["Is", [0, 0], "flammable", ""],
+            ["Is", [0, 0], "flammable", true],
             ["Or", [
-                ["Is", [1, 0], "burning", ""],
-                ["Is", [0, 1], "burning", ""],
-                ["Is", [-1, 0], "burning", ""],
-                ["Is", [0, -1], "burning", ""]
+                ["Is", [1, 0], "burning", true],
+                ["Is", [0, 1], "burning", true],
+                ["Is", [-1, 0], "burning", true],
+                ["Is", [0, -1], "burning", true]
             ]]
         ]],
         "rule_outcome": [
@@ -110,7 +110,7 @@
                 [0, 0],
                 "ChangeTags",
                 [
-                    ["burning", ""]
+                    ["burning", true]
                 ]
             ]
         ],
@@ -118,7 +118,7 @@
     },
     {
         "name": "burning",
-        "condition": ["Is", [0, 0], "burning", ""],
+        "condition": ["Is", [0, 0], "burning", true],
         "rule_outcome": [
             [[0, 0], "ChangeTags", [["burn_time", [[[0, 0], "burn_time"], "-", 1]]]]
         ],
