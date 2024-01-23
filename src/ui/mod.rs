@@ -185,6 +185,8 @@ fn toggle_menu(
     }
     let mouse_pos = mouse_pos.unwrap();
 
+    let mut panel_opened = None;
+
     toggle_buttons
         .iter_mut()
         .for_each(|(transform, mut style, toggle)| {
@@ -214,12 +216,26 @@ fn toggle_menu(
             if is_in_square(mouse_pos, transform.translation().xy(), Vec2::splat(32.))
                 && mouse.just_pressed(MouseButton::Left)
             {
-                if let Some((mut panel_style, _)) = panel {
+                if let Some((mut panel_style, panel)) = panel {
                     match state {
                         true => panel_style.display = Display::None,
-                        false => panel_style.display = Display::Flex,
+                        false => {
+                            panel_style.display = Display::Flex;
+                            panel_opened = Some(panel.0.clone())
+                        },
                     }
                 }
             }
         });
+
+    match panel_opened {
+        Some(opened_panel) => {
+            panels.iter_mut().for_each(|mut panel| {
+                if panel.1.0 != opened_panel {
+                    panel.0.display = Display::None;
+                }
+            })
+        },
+        None => return,
+    }
 }
