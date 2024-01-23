@@ -1,7 +1,7 @@
 use crate::world::World;
 use bevy::prelude::*;
 
-use super::{Fonts, Panel};
+use super::{Fonts, Panel, UICaptureMouse, UIMouseCaptured};
 
 pub struct InspectorPanelPlugin;
 impl Plugin for InspectorPanelPlugin {
@@ -21,12 +21,14 @@ fn setup (mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((SpriteBundle {
         sprite: Sprite { custom_size: Some(Vec2::splat(2.)), ..default()},
         texture: asset_server.load("inspect_pixel_overlay.png"),
+        visibility: Visibility::Hidden,
         ..default()
     }, PixelInspectOverlay));
 
     commands.spawn((SpriteBundle {
         sprite: Sprite { custom_size: Some(Vec2::splat(2.)), ..default()},
         texture: asset_server.load("inspect_pixel_overlay.png"),
+        visibility: Visibility::Hidden,
         ..default()
     }, PixelInspectHoverOverlay));
 }
@@ -66,6 +68,7 @@ pub fn spawn_inspector_panel(
                 ..default()
             },
             Panel("Inspector".to_string()),
+            UICaptureMouse
         ))
         // Content
         .with_children(|rules_panel| {
@@ -172,13 +175,19 @@ fn pixel_selector(
     windows: Query<&Window>,
     camera: Query<(&Camera, &GlobalTransform)>,
     panels: Query<(&Style, &Panel)>,
+    mouse_captured: Res<UIMouseCaptured>,
     mut inspecting: ResMut<InspectingPixel>,
     mut hover_overlay: Query<(&mut Transform, &mut Visibility), (With<PixelInspectHoverOverlay>, Without<PixelInspectOverlay>)>,
     mut overlay: Query<(&mut Transform, &mut Visibility), With<PixelInspectOverlay>>
 ) {
     let window = windows.single();
     let mouse_pos = window.cursor_position();
-    if mouse_pos.is_none() {
+
+    let mut hover_overlay = hover_overlay.single_mut();
+    let mut overlay = overlay.single_mut();
+
+    if mouse_pos.is_none() || mouse_captured.0 {
+        *hover_overlay.1 = Visibility::Hidden;
         return;
     }
     let (camera, camera_transform) = camera.single();
@@ -187,14 +196,15 @@ fn pixel_selector(
     let mouse_pixel_pos = (mouse_pos/Vec2::new(2., -2.)).floor().as_ivec2()+IVec2::splat(world.world_size)/2;
 
     let inspect_panel = panels.iter().find(|(_, panel)| panel.0 == "Inspector");
-    let mut hover_overlay = hover_overlay.single_mut();
-    let mut overlay = overlay.single_mut();
+    
 
     match inspect_panel {
         Some((style, _)) => {
             if style.display == Display::Flex {
                 *hover_overlay.1 = Visibility::Visible;
-                *overlay.1 = Visibility::Visible;
+                if inspecting.0.is_some() {
+                    *overlay.1 = Visibility::Visible;
+                }
             } else {
                 *hover_overlay.1 = Visibility::Hidden;
                 *overlay.1 = Visibility::Hidden;

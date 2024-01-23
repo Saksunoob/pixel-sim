@@ -1,7 +1,7 @@
 use crate::{tags::TagValue, world::World};
 use bevy::{prelude::*, render::render_resource::Extent3d};
 
-use super::{Fonts, Panel};
+use super::{Fonts, Panel, UICaptureMouse};
 
 pub fn spawn_elements_panel(
     info_panel: &mut ChildBuilder<'_, '_, '_>,
@@ -31,6 +31,7 @@ pub fn spawn_elements_panel(
                 ..default()
             },
             Panel("Elements".to_string()),
+            UICaptureMouse
         ))
         // Content
         .with_children(|rules_panel| {

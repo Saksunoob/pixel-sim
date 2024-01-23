@@ -1,7 +1,7 @@
 use crate::{world::World, RuleType};
 use bevy::prelude::*;
 
-use super::{CheckBox, Fonts, Panel};
+use super::{CheckBox, Fonts, Panel, UICaptureMouse};
 
 pub struct RulePanelPlugin;
 impl Plugin for RulePanelPlugin {
@@ -38,6 +38,7 @@ pub fn spawn_rules_panel(
                 ..default()
             },
             Panel("Rules".to_string()),
+            UICaptureMouse,
         ))
         // Content
         .with_children(|rules_panel| {

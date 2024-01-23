@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
 
-use bevy::{prelude::*, utils::HashMap};
+use bevy::{prelude::*, transform, utils::HashMap};
 
 use crate::world::World;
 
@@ -57,8 +57,10 @@ pub struct Panel(String);
 
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
+        app.insert_resource(UIMouseCaptured(false));
         app.add_plugins((rules::RulePanelPlugin, inspector::InspectorPanelPlugin));
         app.add_systems(Startup, setup)
+        .add_systems(PreUpdate, ui_capture_mouse)
             .add_systems(Update, toggle_menu);
     }
 }
@@ -136,6 +138,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
                                             ..default()
                                         },
                                         PanelToggle(Panel(name.to_string())),
+                                        UICaptureMouse
                                     ))
                                     .with_children(|icon_section| {
                                         icon_section.spawn(ImageBundle {
@@ -164,6 +167,33 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
                     });
             });
         });
+}
+
+#[derive(Resource)]
+struct UIMouseCaptured(bool);
+
+#[derive(Component)]
+struct UICaptureMouse;
+
+fn ui_capture_mouse(
+    mut mouse_captured: ResMut<UIMouseCaptured>,
+    ui: Query<(&GlobalTransform, &Node), With<UICaptureMouse>>,
+    windows: Query<&Window>,
+) {
+    mouse_captured.0 = false;
+    let window = windows.single();
+    let mouse_pos = window.cursor_position();
+    if mouse_pos.is_none() {
+        return;
+    }
+    let mouse_pos = mouse_pos.unwrap();
+
+    for (transform, node) in ui.iter() {
+        if node.logical_rect(transform).contains(mouse_pos) {
+            mouse_captured.0 = true;
+            break;
+        }
+    }
 }
 
 pub fn is_in_square(pos: Vec2, center: Vec2, side_length: Vec2) -> bool {
