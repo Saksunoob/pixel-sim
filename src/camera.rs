@@ -1,6 +1,6 @@
 use bevy::{input::mouse::MouseWheel, prelude::*};
 
-const ZOOM_LEVELS: [f32; 6] = [0.2, 0.25, 1. / 3., 0.5, 1., 2.];
+const ZOOM_LEVELS: [f32; 7] = [0.1, 0.2, 0.25, 1. / 3., 0.5, 1., 2.];
 
 pub struct CameraPlugin;
 impl Plugin for CameraPlugin {

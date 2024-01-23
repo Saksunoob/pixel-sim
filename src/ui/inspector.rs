@@ -6,8 +6,9 @@ use super::{Fonts, Panel};
 pub struct InspectorPanelPlugin;
 impl Plugin for InspectorPanelPlugin {
     fn build(&self, app: &mut App) {
+        app.insert_resource(InspectingPixel(None));
         app.add_systems(Startup, setup);
-        app.add_systems(Update, pixel_selector);
+        app.add_systems(Update, (pixel_selector, update_inspector));
     }
 }
 
@@ -29,6 +30,15 @@ fn setup (mut commands: Commands, asset_server: Res<AssetServer>) {
         ..default()
     }, PixelInspectHoverOverlay));
 }
+
+#[derive(Resource)]
+struct InspectingPixel(Option<IVec2>);
+
+#[derive(Component)]
+struct InspectorPosText;
+
+#[derive(Component)]
+struct InspectorTagsText;
 
 pub fn spawn_inspector_panel(
     info_panel: &mut ChildBuilder<'_, '_, '_>,
@@ -88,7 +98,7 @@ pub fn spawn_inspector_panel(
                     ..default()
                 })
                 .with_children(|list| {
-                    list.spawn(TextBundle {
+                    list.spawn((TextBundle {
                         text: Text::from_sections([
                             TextSection::new("Position: ", TextStyle {
                                 font: fonts.get_font("Roboto"),
@@ -103,8 +113,8 @@ pub fn spawn_inspector_panel(
                             ]
                         ),
                         ..default()
-                    });
-                    list.spawn(TextBundle {
+                    }, InspectorPosText));
+                    list.spawn((TextBundle {
                         text: Text::from_section(
                             "Tags: ", 
                             TextStyle {
@@ -114,19 +124,57 @@ pub fn spawn_inspector_panel(
                             }
                         ),
                         ..default()
-                    });
+                    }, InspectorTagsText));
                 });
         });
 }
 
+fn update_inspector(
+    inspecting: Res<InspectingPixel>,
+    world: Res<World>,
+    mut pos_text: Query<&mut Text, With<InspectorPosText>>,
+    mut tags_text: Query<&mut Text, (With<InspectorTagsText>, Without<InspectorPosText>)>,
+    fonts: Res<Fonts>
+) {
+    let mut pos_text = pos_text.single_mut();
+    let position_text = pos_text.sections.get_mut(1).unwrap();
 
+    let mut tags_text = tags_text.single_mut();
+    match inspecting.0 {
+        Some(pos) => {
+            position_text.style.color = Color::WHITE;
+            position_text.value = format!("x: {}, y: {}", pos.x, pos.y);
+
+            let mut sections = vec![tags_text.sections[0].clone()];
+            for (name, value) in world.bits.iter().map(|(name, space)| (name, space.get_tag(pos))) {
+                sections.push(TextSection { value: format!("\n{}: {}", name, value.to_string(&world.elements)), 
+                style: TextStyle { 
+                    font: fonts.get_font("Roboto"), 
+                    font_size: 16., 
+                    color: Color::WHITE 
+                } })
+            }
+            tags_text.sections = sections;
+        },
+        None => {
+            position_text.style.color = Color::GRAY;
+            position_text.value = "Not Selected".to_string();
+
+            tags_text.sections = vec![tags_text.sections[0].clone()];
+        },
+    }
+    
+}
 
 fn pixel_selector(
     world: Res<World>,
     mouse: Res<Input<MouseButton>>,
     windows: Query<&Window>,
     camera: Query<(&Camera, &GlobalTransform)>,
-    mut hover_overlay: Query<(&mut Transform, &mut Visibility), With<PixelInspectHoverOverlay>>
+    panels: Query<(&Style, &Panel)>,
+    mut inspecting: ResMut<InspectingPixel>,
+    mut hover_overlay: Query<(&mut Transform, &mut Visibility), (With<PixelInspectHoverOverlay>, Without<PixelInspectOverlay>)>,
+    mut overlay: Query<(&mut Transform, &mut Visibility), With<PixelInspectOverlay>>
 ) {
     let window = windows.single();
     let mouse_pos = window.cursor_position();
@@ -136,13 +184,30 @@ fn pixel_selector(
     let (camera, camera_transform) = camera.single();
     let mouse_pos = camera.viewport_to_world_2d(camera_transform, mouse_pos.unwrap()).unwrap();
 
-    let mouse_pixel_pos = (mouse_pos/Vec2::new(2., -2.)).floor().as_ivec2()+IVec2::splat(world.world_size-1)/2;
+    let mouse_pixel_pos = (mouse_pos/Vec2::new(2., -2.)).floor().as_ivec2()+IVec2::splat(world.world_size)/2;
 
-    let (mut transform, mut visibility) = hover_overlay.single_mut();
-    transform.translation = Vec3::new(mouse_pos.x/2., mouse_pos.y/2., 0.).floor()*2.+Vec3::ONE;
-    *visibility = Visibility::Visible;
+    let inspect_panel = panels.iter().find(|(_, panel)| panel.0 == "Inspector");
+    let mut hover_overlay = hover_overlay.single_mut();
+    let mut overlay = overlay.single_mut();
+
+    match inspect_panel {
+        Some((style, _)) => {
+            if style.display == Display::Flex {
+                *hover_overlay.1 = Visibility::Visible;
+                *overlay.1 = Visibility::Visible;
+            } else {
+                *hover_overlay.1 = Visibility::Hidden;
+                *overlay.1 = Visibility::Hidden;
+            }
+        },
+        None => return,
+    }
+
+    hover_overlay.0.translation = Vec3::new(mouse_pos.x/2., mouse_pos.y/2., 0.).floor()*2.+Vec3::ONE;
 
     if mouse.just_pressed(MouseButton::Left) {
+        inspecting.0 = Some(mouse_pixel_pos);
         println!("{}", mouse_pixel_pos);
+        overlay.0.translation = Vec3::new(mouse_pos.x/2., mouse_pos.y/2., 0.).floor()*2.+Vec3::ONE;
     }
 }   

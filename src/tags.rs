@@ -3,7 +3,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::ops::{Add, Div, Mul, Sub};
 
-use crate::hash;
+use crate::{hash, world::Elements};
 
 #[derive(Debug, Copy, Clone, Serialize)]
 pub enum TagValue {
@@ -22,6 +22,15 @@ impl TagValue {
             TagValue::Boolean(v) => *v as u64 as f64,
             TagValue::Element(el) => *el as f64,
         }
+    }
+    pub fn to_string(&self, elements: &Elements) -> String {
+        match self {
+            TagValue::None => "None".to_string(),
+            TagValue::Integer(i) => format!("{i}"),
+            TagValue::Float(f) => format!("{f}"),
+            TagValue::Boolean(b) => if *b {"True".to_string()} else {"False".to_string()},
+            TagValue::Element(el) => elements.get(*el).name,
+        }.to_string()
     }
 }
 impl PartialEq for TagValue {
