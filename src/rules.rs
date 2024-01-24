@@ -1,7 +1,7 @@
-use std::{collections::HashMap, sync::RwLock};
+use std::{collections::HashMap, sync::RwLock, time::Instant};
 
 use bevy::{
-    ecs::system::Res,
+    ecs::{system::Res, world},
     input::{keyboard::ScanCode, Input},
     math::IVec2,
 };
@@ -57,11 +57,12 @@ impl Ruleset {
         frame: u128,
         input: &Res<Input<ScanCode>>,
     ) {
+        let rule_execution_start = Instant::now();
         self.rules.iter().for_each(|rule| {
             if rule.enabled() {
                 self.execute_rule(rule, tiles, world_size, elements, frame, input);
             }
-        })
+        });
     }
 
     pub fn execute_rule(
@@ -73,16 +74,36 @@ impl Ruleset {
         frame: u128,
         input: &Res<Input<ScanCode>>,
     ) {
-        let mut actions: Vec<Action> = (0..world_size * world_size)
+        const CHUNK_COUNT: usize = 8;
+        let chunk_size: usize = world_size as usize / CHUNK_COUNT;
+
+        let mut actions: Vec<Vec<Action>> = (0..CHUNK_COUNT * CHUNK_COUNT)
             .into_par_iter()
-            .flat_map(|index| {
-                let x = index % world_size;
-                let y = index / world_size;
-                rule.execute(IVec2::new(x, y), tiles, world_size, elements, frame, input)
+            .map(|chunk| {
+                let chunk_x = chunk % CHUNK_COUNT;
+                let chunk_y = chunk / CHUNK_COUNT;
+                (0..chunk_size * chunk_size)
+                    .into_par_iter()
+                    .flat_map(|index| {
+                        let x = chunk_x * chunk_size + index % chunk_size;
+                        let y = chunk_y * chunk_size + index / chunk_size;
+                        rule.execute(
+                            IVec2::new(x as i32, y as i32),
+                            tiles,
+                            world_size,
+                            elements,
+                            frame,
+                            input,
+                        )
+                    })
+                    .collect()
             })
             .collect();
 
-        actions.par_sort_unstable_by(|a, b| a.priority.partial_cmp(&b.priority).unwrap().reverse());
+        actions.par_iter_mut().for_each(|chunk| {
+            chunk
+                .par_sort_unstable_by(|a, b| a.priority.partial_cmp(&b.priority).unwrap().reverse())
+        });
 
         let affected: Vec<RwLock<bool>> = (0..(world_size * world_size))
             .into_par_iter()
@@ -97,24 +118,29 @@ impl Ruleset {
         };
 
         let actions: HashMap<usize, ActionDataType> = actions
-            .into_iter()
-            .filter_map(|action| {
-                // Find out a way to make this parrallel while preserving priority
-                if action.get_affected().iter().any(|index| is_affected(index)) {
-                    return None;
-                }
-                action.get_affected().iter().for_each(|index| {
-                    *affected[get_index(index, world_size)].write().unwrap() = true
-                });
-                Some(
-                    action
-                        .new_states
-                        .iter()
-                        .map(|(pos, data)| (get_index(pos, world_size), data.clone()))
-                        .collect::<Vec<_>>(),
-                )
+            .into_par_iter()
+            .flat_map(|chunk| {
+                chunk
+                    .iter()
+                    .filter_map(|action| {
+                        // Find out a way to make this parrallel while preserving priority
+                        if action.get_affected().iter().any(|index| is_affected(index)) {
+                            return None;
+                        }
+                        action.get_affected().iter().for_each(|index| {
+                            *affected[get_index(index, world_size)].write().unwrap() = true
+                        });
+                        Some(
+                            action
+                                .new_states
+                                .iter()
+                                .map(|(pos, data)| (get_index(pos, world_size), data.clone()))
+                                .collect::<Vec<_>>(),
+                        )
+                    })
+                    .flatten()
+                    .collect::<Vec<(usize, ActionDataType)>>()
             })
-            .flatten()
             .collect();
 
         let old_tiles = tiles.clone();
