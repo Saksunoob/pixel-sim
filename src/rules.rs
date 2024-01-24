@@ -1,7 +1,7 @@
-use std::{collections::HashMap, sync::RwLock, time::Instant};
+use std::{collections::HashMap, sync::RwLock};
 
 use bevy::{
-    ecs::{system::Res, world},
+    ecs::system::Res,
     input::{keyboard::ScanCode, Input},
     math::IVec2,
 };
@@ -57,7 +57,6 @@ impl Ruleset {
         frame: u128,
         input: &Res<Input<ScanCode>>,
     ) {
-        let rule_execution_start = Instant::now();
         self.rules.iter().for_each(|rule| {
             if rule.enabled() {
                 self.execute_rule(rule, tiles, world_size, elements, frame, input);

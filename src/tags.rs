@@ -28,9 +28,16 @@ impl TagValue {
             TagValue::None => "None".to_string(),
             TagValue::Integer(i) => format!("{i}"),
             TagValue::Float(f) => format!("{f}"),
-            TagValue::Boolean(b) => if *b {"True".to_string()} else {"False".to_string()},
+            TagValue::Boolean(b) => {
+                if *b {
+                    "True".to_string()
+                } else {
+                    "False".to_string()
+                }
+            }
             TagValue::Element(el) => elements.get(*el).name,
-        }.to_string()
+        }
+        .to_string()
     }
 }
 impl PartialEq for TagValue {

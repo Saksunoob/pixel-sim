@@ -132,16 +132,19 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(GameScreen(image_handle.clone(), Rect::default()));
     commands.insert_resource(Simulation::new());
 
-    commands.spawn((SpriteBundle {
-        sprite: Sprite {
-            anchor: bevy::sprite::Anchor::Center,
-            custom_size: Some(Vec2::splat(1.0)),
-            ..Default::default()
+    commands.spawn((
+        SpriteBundle {
+            sprite: Sprite {
+                anchor: bevy::sprite::Anchor::Center,
+                custom_size: Some(Vec2::splat(1.0)),
+                ..Default::default()
+            },
+            transform: Transform::from_xyz(0., 0., 0.),
+            texture: image_handle,
+            ..default()
         },
-        transform: Transform::from_xyz(0., 0., 0.),
-        texture: image_handle,
-        ..default()
-    }, PixelGrid));
+        PixelGrid,
+    ));
 }
 
 fn simulation_step(

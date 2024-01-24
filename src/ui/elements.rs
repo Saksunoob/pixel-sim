@@ -31,7 +31,7 @@ pub fn spawn_elements_panel(
                 ..default()
             },
             Panel("Elements".to_string()),
-            UICaptureMouse
+            UICaptureMouse,
         ))
         // Content
         .with_children(|rules_panel| {

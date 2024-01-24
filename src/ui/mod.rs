@@ -4,9 +4,9 @@ use bevy::{prelude::*, transform, utils::HashMap};
 
 use crate::world::World;
 
-mod rules;
 mod elements;
 mod inspector;
+mod rules;
 
 pub struct UIPlugin;
 
@@ -60,7 +60,7 @@ impl Plugin for UIPlugin {
         app.insert_resource(UIMouseCaptured(false));
         app.add_plugins((rules::RulePanelPlugin, inspector::InspectorPanelPlugin));
         app.add_systems(Startup, setup)
-        .add_systems(PreUpdate, ui_capture_mouse)
+            .add_systems(PreUpdate, ui_capture_mouse)
             .add_systems(Update, toggle_menu);
     }
 }
@@ -138,7 +138,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
                                             ..default()
                                         },
                                         PanelToggle(Panel(name.to_string())),
-                                        UICaptureMouse
+                                        UICaptureMouse,
                                     ))
                                     .with_children(|icon_section| {
                                         icon_section.spawn(ImageBundle {
@@ -252,20 +252,18 @@ fn toggle_menu(
                         false => {
                             panel_style.display = Display::Flex;
                             panel_opened = Some(panel.0.clone())
-                        },
+                        }
                     }
                 }
             }
         });
 
     match panel_opened {
-        Some(opened_panel) => {
-            panels.iter_mut().for_each(|mut panel| {
-                if panel.1.0 != opened_panel {
-                    panel.0.display = Display::None;
-                }
-            })
-        },
+        Some(opened_panel) => panels.iter_mut().for_each(|mut panel| {
+            if panel.1 .0 != opened_panel {
+                panel.0.display = Display::None;
+            }
+        }),
         None => return,
     }
 }
