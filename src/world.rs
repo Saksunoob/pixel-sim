@@ -31,7 +31,7 @@ impl Plugin for WorldPlugin {
 }
 #[derive(Resource, Clone)]
 pub struct World {
-    names: Vec<String>,
+    pub names: Vec<String>,
     pub bits: HashMap<String, TagSpace>,
     pub world_size: i32,
     pub ruleset: Ruleset,

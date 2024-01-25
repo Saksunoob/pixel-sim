@@ -49,10 +49,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 struct InspectingPixel(Option<IVec2>);
 
 #[derive(Component)]
-struct InspectorPosText;
-
-#[derive(Component)]
-struct InspectorTagsText;
+struct InspectorText;
 
 pub fn spawn_inspector_panel(info_panel: &mut ChildBuilder<'_, '_, '_>, fonts: &Fonts) {
     info_panel
@@ -114,7 +111,7 @@ pub fn spawn_inspector_panel(info_panel: &mut ChildBuilder<'_, '_, '_>, fonts: &
                         TextBundle {
                             text: Text::from_sections([
                                 TextSection::new(
-                                    "Position: ",
+                                    "Pixel: ",
                                     TextStyle {
                                         font: fonts.get_font("Roboto"),
                                         font_size: 16.,
@@ -132,21 +129,7 @@ pub fn spawn_inspector_panel(info_panel: &mut ChildBuilder<'_, '_, '_>, fonts: &
                             ]),
                             ..default()
                         },
-                        InspectorPosText,
-                    ));
-                    list.spawn((
-                        TextBundle {
-                            text: Text::from_section(
-                                "Tags: ",
-                                TextStyle {
-                                    font: fonts.get_font("Roboto"),
-                                    font_size: 16.,
-                                    color: Color::WHITE,
-                                },
-                            ),
-                            ..default()
-                        },
-                        InspectorTagsText,
+                        InspectorText,
                     ));
                 });
         });
@@ -155,41 +138,53 @@ pub fn spawn_inspector_panel(info_panel: &mut ChildBuilder<'_, '_, '_>, fonts: &
 fn update_inspector(
     inspecting: Res<InspectingPixel>,
     world: Res<World>,
-    mut pos_text: Query<&mut Text, With<InspectorPosText>>,
-    mut tags_text: Query<&mut Text, (With<InspectorTagsText>, Without<InspectorPosText>)>,
+    mut inspector_text: Query<&mut Text, With<InspectorText>>,
     fonts: Res<Fonts>,
 ) {
-    let mut pos_text = pos_text.single_mut();
-    let position_text = pos_text.sections.get_mut(1).unwrap();
+    let mut inspector_text = inspector_text.single_mut();
+    inspector_text.sections = Vec::new();
 
-    let mut tags_text = tags_text.single_mut();
+    let mut add_section = |text: &str, indent: usize, color: Color| {
+        inspector_text.sections.push(TextSection::new(
+            format!("{}{text}\n", "   ".repeat(indent)),
+            TextStyle {
+                font: fonts.get_font("Roboto"),
+                font_size: 16.,
+                color,
+            },
+        ));
+    };
+
     match inspecting.0 {
         Some(pos) => {
-            position_text.style.color = Color::WHITE;
-            position_text.value = format!("x: {}, y: {}", pos.x, pos.y);
+            add_section("Pixel: ", 0, Color::WHITE);
+            add_section(
+                &world.names[(pos.y * world.world_size + pos.x) as usize],
+                1,
+                Color::WHITE,
+            );
 
-            let mut sections = vec![tags_text.sections[0].clone()];
+            add_section("Position: ", 0, Color::WHITE);
+            add_section(&format!("x: {}", pos.x), 1, Color::WHITE);
+            add_section(&format!("y: {}", pos.y), 1, Color::WHITE);
+
+            add_section("Tags: ", 0, Color::WHITE);
+
             for (name, value) in world
                 .bits
                 .iter()
                 .map(|(name, space)| (name, space.get_tag(pos)))
             {
-                sections.push(TextSection {
-                    value: format!("\n{}: {}", name, value.to_string(&world.elements)),
-                    style: TextStyle {
-                        font: fonts.get_font("Roboto"),
-                        font_size: 16.,
-                        color: Color::WHITE,
-                    },
-                })
+                add_section(
+                    &format!("{}: {}", name, value.to_string(&world.elements)),
+                    1,
+                    Color::WHITE,
+                );
             }
-            tags_text.sections = sections;
         }
         None => {
-            position_text.style.color = Color::GRAY;
-            position_text.value = "Not Selected".to_string();
-
-            tags_text.sections = vec![tags_text.sections[0].clone()];
+            add_section("Pixel: ", 0, Color::WHITE);
+            add_section("Not Selected", 1, Color::GRAY);
         }
     }
 }
