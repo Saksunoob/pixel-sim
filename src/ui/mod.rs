@@ -1,6 +1,6 @@
-use std::borrow::Borrow;
+use std::{borrow::Borrow, f32::consts::PI};
 
-use bevy::{prelude::*, transform, utils::HashMap};
+use bevy::{prelude::*, utils::HashMap};
 
 use crate::world::World;
 
@@ -49,11 +49,57 @@ impl Fonts {
     }
 }
 
+enum HorizontalSide {
+    Left,
+    Right
+}
+enum VerticalSide {
+    Top,
+    Bottom
+}
+enum AnimationType {
+    EaseOutElastic
+}
+#[derive(Component)]  
+pub struct PositionAnimation {
+    animation_type: AnimationType,
+    horizontal_side: HorizontalSide,
+    vertical_side: VerticalSide,
+    start: Vec2,
+    end: Vec2,
+    start_time: f32,
+    duration: f32
+}
+impl PositionAnimation {
+    pub fn get_pos(&self, time: f32) -> Vec2 {
+        match self.animation_type {
+            AnimationType::EaseOutElastic => {
+
+                const BOUNCES: f32 = (2. * PI) / 3.;
+                let t = (time-self.start_time) / self.duration;
+
+                if t <= 0. {
+                    return self.start;
+                }
+                if t >= 1. {
+                    return self.end;
+                }
+
+                let lerp = (2_f32).powf(-10. * t) * ((t * 10. - 0.75) * BOUNCES).sin() + 1.;
+                self.start.lerp(self.end, lerp)
+            },
+        }
+    }
+}
+
 #[derive(Component, Clone)]
 pub struct PanelToggle(Panel);
 
 #[derive(Component, Clone, PartialEq)]
 pub struct Panel(String);
+
+#[derive(Component)]
+pub struct InfoPanel;
 
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
@@ -61,7 +107,7 @@ impl Plugin for UIPlugin {
         app.add_plugins((rules::RulePanelPlugin, inspector::InspectorPanelPlugin));
         app.add_systems(Startup, setup)
             .add_systems(PreUpdate, ui_capture_mouse)
-            .add_systems(Update, toggle_menu);
+            .add_systems(Update, (toggle_menu, apply_position_animation));
     }
 }
 
@@ -88,7 +134,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
         })
         .with_children(|ui| {
             // Info panel
-            ui.spawn(NodeBundle {
+            ui.spawn((NodeBundle {
                 style: Style {
                     width: Val::Auto,
                     height: Val::Percent(100.0),
@@ -97,7 +143,17 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
                     ..default()
                 },
                 ..default()
-            })
+            },
+            InfoPanel,
+            PositionAnimation {
+                animation_type: AnimationType::EaseOutElastic,
+                horizontal_side: HorizontalSide::Left,
+                vertical_side: VerticalSide::Top,
+                start: Vec2::ZERO,
+                end: Vec2::ZERO,
+                start_time: 0.,
+                duration: 0.1,
+            }))
             .with_children(|info_panel| {
                 rules::spawn_rules_panel(info_panel, &fonts, &world, &checkbox);
                 elements::spawn_elements_panel(info_panel, &fonts, &world, &asset_server);
@@ -205,6 +261,8 @@ pub fn is_in_square(pos: Vec2, center: Vec2, side_length: Vec2) -> bool {
 fn toggle_menu(
     mut toggle_buttons: Query<(&GlobalTransform, &mut Style, &PanelToggle), Without<Panel>>,
     mut panels: Query<(&mut Style, &Panel)>,
+    mut info_panel: Query<&mut PositionAnimation, With<InfoPanel>>,
+    time: Res<Time>,
     mouse: Res<Input<MouseButton>>,
     windows: Query<&Window>,
 ) {
@@ -216,6 +274,7 @@ fn toggle_menu(
     let mouse_pos = mouse_pos.unwrap();
 
     let mut panel_opened = None;
+    let mut panel_open = false;
 
     toggle_buttons
         .iter_mut()
@@ -226,6 +285,8 @@ fn toggle_menu(
             } else {
                 false
             };
+
+            panel_open = panel_open || state;
 
             let width = if let Val::Px(width) = style.width {
                 width
@@ -259,11 +320,36 @@ fn toggle_menu(
         });
 
     match panel_opened {
-        Some(opened_panel) => panels.iter_mut().for_each(|mut panel| {
-            if panel.1 .0 != opened_panel {
+        Some(opened_panel) => {
+            panels.iter_mut().for_each(|mut panel| {
+            if panel.1.0 != opened_panel {
                 panel.0.display = Display::None;
             }
-        }),
+        });
+        if !panel_open {
+            let mut info_panel = info_panel.single_mut();
+            info_panel.start = Vec2::new(-50., 0.);
+            info_panel.end = Vec2::new(0., 0.);
+            info_panel.start_time = time.elapsed_seconds();
+        }
+    },
         None => return,
+    }
+}
+
+fn apply_position_animation (
+    mut objects: Query<(&mut Style, &PositionAnimation)>,
+    time: Res<Time>
+) {
+    for (mut style, animation) in objects.iter_mut() {
+        let pos = animation.get_pos(time.elapsed_seconds());
+        match &animation.horizontal_side {
+            HorizontalSide::Left => style.left = Val::Px(pos.x),
+            HorizontalSide::Right => style.right = Val::Px(pos.x),
+        }
+        match &animation.vertical_side {
+            VerticalSide::Top => style.top = Val::Px(pos.y),
+            VerticalSide::Bottom => style.bottom = Val::Px(pos.y),
+        }
     }
 }
