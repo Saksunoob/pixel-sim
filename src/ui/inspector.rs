@@ -209,10 +209,28 @@ fn pixel_selector(
     let mut hover_overlay = hover_overlay.single_mut();
     let mut overlay = overlay.single_mut();
 
+    let inspect_panel = panels.iter().find(|(_, panel)| panel.0 == "Inspector").unwrap();
+
+    // Set overlay visibility
+    if inspect_panel.0.display == Display::Flex {
+        *hover_overlay.1 = Visibility::Visible;
+        if inspecting.0.is_some() {
+            *overlay.1 = Visibility::Visible;
+        } else {
+            *overlay.1 = Visibility::Hidden;
+        }
+    } else {
+        *hover_overlay.1 = Visibility::Hidden;
+        *overlay.1 = Visibility::Hidden;
+    }
+
+    // Check if mouse is on the simulaton
     if mouse_pos.is_none() || mouse_captured.0 {
         *hover_overlay.1 = Visibility::Hidden;
         return;
     }
+
+    // Calculate mouse position as simulation pixels
     let (camera, camera_transform) = camera.single();
     let mouse_pos = camera
         .viewport_to_world_2d(camera_transform, mouse_pos.unwrap())
@@ -221,30 +239,23 @@ fn pixel_selector(
     let mouse_pixel_pos =
         (mouse_pos / Vec2::new(2., -2.)).floor().as_ivec2() + IVec2::splat(world.world_size) / 2;
 
-    let inspect_panel = panels.iter().find(|(_, panel)| panel.0 == "Inspector");
-
-    match inspect_panel {
-        Some((style, _)) => {
-            if style.display == Display::Flex {
-                *hover_overlay.1 = Visibility::Visible;
-                if inspecting.0.is_some() {
-                    *overlay.1 = Visibility::Visible;
-                }
-            } else {
-                *hover_overlay.1 = Visibility::Hidden;
-                *overlay.1 = Visibility::Hidden;
-            }
-        }
-        None => return,
-    }
-
+    // Set set hover overlay position
     hover_overlay.0.translation =
         Vec3::new(mouse_pos.x / 2., mouse_pos.y / 2., 0.).floor() * 2. + Vec3::ONE;
 
     if mouse.just_pressed(MouseButton::Left) {
-        inspecting.0 = Some(mouse_pixel_pos);
-        println!("{}", mouse_pixel_pos);
-        overlay.0.translation =
+        // If click happened on the simulation
+        if mouse_pixel_pos.x >= 0 && mouse_pixel_pos.y >= 0 && mouse_pixel_pos.x < world.world_size && mouse_pixel_pos.y < world.world_size {
+            // Select clicked pixel
+            inspecting.0 = Some(mouse_pixel_pos);
+            println!("{}", mouse_pixel_pos);
+            // Set selection overlay position
+            overlay.0.translation =
             Vec3::new(mouse_pos.x / 2., mouse_pos.y / 2., 0.).floor() * 2. + Vec3::ONE;
+        } else { // If click happened outside the simulation
+            // Deselect
+            inspecting.0 = None;
+        }
+        
     }
 }
