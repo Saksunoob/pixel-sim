@@ -2,8 +2,7 @@ use serde_json::Value;
 use std::{fs, path::Path};
 
 use crate::{
-    rules::{Condition, Math, RuleOutcome, RuleType},
-    world::Elements,
+    rules::{Condition, Math, RuleOutcome}, world::Elements, Rule, SingleRule
 };
 
 pub fn load_elements(path: &Path) -> Option<Elements> {
@@ -21,7 +20,7 @@ pub fn load_elements(path: &Path) -> Option<Elements> {
     }
 }
 
-pub fn load_rule(rule: &Value) -> Option<RuleType> {
+pub fn load_rule(rule: &Value) -> Option<SingleRule> {
     let properties = rule.as_object()?;
     let name = match properties.get("name") {
         Some(value) => value.as_str().unwrap_or("no_name").to_string(),
@@ -34,14 +33,12 @@ pub fn load_rule(rule: &Value) -> Option<RuleType> {
     match (condition, rule_outcome, priority) {
         (Some(condition), Some(rule_outcome), Some(priority)) => {
             println!("Loaded rule {name}");
-            Some(RuleType::Rule {
+            Some(SingleRule::new(
                 name,
-                enabled: true,
-                parent_enabled: true,
                 condition,
                 rule_outcome,
                 priority,
-            })
+            ))
         }
         (condition, rule_outcome, priority) => {
             eprintln!("Failed to load rule {name}:");
@@ -59,7 +56,7 @@ pub fn load_rule(rule: &Value) -> Option<RuleType> {
     }
 }
 
-pub fn load_rules(path: &Path) -> Option<Vec<RuleType>> {
+pub fn load_rules(path: &Path) -> Option<Vec<Rule>> {
     if path.is_file() {
         let file_content = match fs::read_to_string(path) {
             Ok(content) => Some(content),
@@ -78,18 +75,17 @@ pub fn load_rules(path: &Path) -> Option<Vec<RuleType>> {
                         .filter_map(|rule| {
                             if let Some(compound) = rule.as_array() {
                                 // Compound rule
-                                Some(RuleType::CompoundRule {
+                                Some(Rule::Compound {
                                     name: compound[0].as_str()?.to_string(),
                                     enabled: true,
                                     rules: compound[1..]
                                         .into_iter()
                                         .filter_map(|rule| load_rule(rule))
-                                        .collect(),
-                                    parent_enabled: true,
+                                        .collect()
                                 })
                             } else {
                                 // Single rule
-                                load_rule(rule)
+                                load_rule(rule).and_then(|rule| Some(Rule::Single(rule)))
                             }
                         })
                         .collect(),

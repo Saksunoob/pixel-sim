@@ -1,4 +1,4 @@
-use crate::{world::World, RuleType};
+use crate::world::World;
 use bevy::prelude::*;
 
 use super::{CheckBox, Fonts, Panel, UICaptureMouse};
@@ -72,24 +72,12 @@ pub fn spawn_rules_panel(
                 })
                 .with_children(|list| {
                     for (index, rule) in world.ruleset.rules.iter().enumerate() {
-                        match rule {
-                            RuleType::Rule { name, .. } => {
-                                spawn_list_rule(list, name, (index, 0), 0, &fonts, &checkbox)
-                            }
-                            RuleType::CompoundRule { name, rules, .. } => {
-                                spawn_list_rule(list, name, (index, 0), 0, &fonts, &checkbox);
+                        spawn_list_rule(list, rule.get_name(), (index, None), 0, fonts, checkbox);
 
-                                for (lower_index, rule) in rules.iter().enumerate() {
-                                    spawn_list_rule(
-                                        list,
-                                        rule.get_name(),
-                                        (index, lower_index + 1),
-                                        1,
-                                        &fonts,
-                                        &checkbox,
-                                    );
-                                }
-                            }
+                        if let crate::Rule::Compound { rules, .. } = rule {
+                            rules.iter().enumerate().for_each(|(child_index, child)| {
+                                spawn_list_rule(list, child.get_name(), (index, Some(child_index)), 1, fonts, checkbox);
+                            })
                         }
                     }
                 });
@@ -99,7 +87,7 @@ pub fn spawn_rules_panel(
 fn spawn_list_rule(
     list: &mut ChildBuilder<'_, '_, '_>,
     name: &str,
-    index: (usize, usize),
+    index: (usize, Option<usize>),
     indent: u64,
     fonts: &Fonts,
     check_box: &CheckBox,
@@ -151,10 +139,10 @@ fn spawn_list_rule(
 }
 
 #[derive(Component)]
-struct RuleListCheckbox((usize, usize));
+struct RuleListCheckbox((usize, Option<usize>));
 
 #[derive(Component)]
-struct RuleListText((usize, usize));
+struct RuleListText((usize, Option<usize>));
 
 fn handle_rule_clicks(
     mut check_boxes: Query<(&GlobalTransform, &mut UiImage, &RuleListCheckbox)>,
@@ -176,12 +164,11 @@ fn handle_rule_clicks(
             transform.translation().truncate(),
             Vec2::splat(16.),
         ) {
-            let rule = world.ruleset.get_index_mut(check_box.0).unwrap();
-            if rule.self_enabled() {
-                rule.set_enabled(false);
+            if world.ruleset.get_self_enabled(check_box.0).unwrap() {
+                world.ruleset.set_enabled(check_box.0, false);
                 image.texture = checkbox_res.get_handle(false);
             } else {
-                rule.set_enabled(true);
+                world.ruleset.set_enabled(check_box.0, true);
                 image.texture = checkbox_res.get_handle(true);
             }
         }
@@ -192,10 +179,8 @@ fn handle_rule_text(mut items: Query<(&mut Text, &RuleListText)>, mut world: Res
     const ENABLED_COLOR: Color = Color::WHITE;
     const DISABLED_COLOR: Color = Color::GRAY;
 
-    for (mut text, rule_index) in items.iter_mut() {
-        let rule = world.ruleset.get_index_mut(rule_index.0).unwrap();
-
-        match rule.enabled() {
+    for (mut text, index) in items.iter_mut() {
+        match world.ruleset.get_enabled(index.0).unwrap_or(false) {
             true => text
                 .sections
                 .iter_mut()

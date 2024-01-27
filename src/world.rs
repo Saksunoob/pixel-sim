@@ -20,16 +20,16 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
 
-pub struct WorldPlugin(pub World);
+pub struct WorldPlugin(pub usize, pub Elements, pub Ruleset);
 
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
-        app.insert_resource(self.0.clone())
+        app.insert_resource(World::new(self.0, self.1.clone(), self.2.clone()))
             .add_systems(Startup, setup)
             .add_systems(Update, (update, simulation_step));
     }
 }
-#[derive(Resource, Clone)]
+#[derive(Resource)]
 pub struct World {
     pub names: Vec<String>,
     pub bits: HashMap<String, TagSpace>,
@@ -222,4 +222,8 @@ impl Elements {
             Vec::new()
         }
     }
+}
+
+pub const fn pos_in_world(pos: IVec2, world_size: i32) -> bool {
+    pos.x >= 0 && pos.y >= 0 && pos.x < world_size && pos.y < world_size
 }

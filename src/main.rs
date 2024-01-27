@@ -45,7 +45,7 @@ fn main() {
                         },
                     ),
                 }),
-            WorldPlugin(world::World::new(250, elements, ruleset)),
+            WorldPlugin(250, elements, ruleset),
             CameraPlugin,
             UIPlugin,
         ))

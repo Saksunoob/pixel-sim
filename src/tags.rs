@@ -1,9 +1,8 @@
 use bevy::math::IVec2;
-use rayon::prelude::*;
 use serde::{Deserialize, Deserializer, Serialize};
-use std::ops::{Add, Div, Mul, Sub};
+use std::{ops::{Add, Div, Mul, Sub}, sync::RwLock};
 
-use crate::{hash, world::Elements};
+use crate::{hash, world::{pos_in_world, Elements}};
 
 #[derive(Debug, Copy, Clone, Serialize)]
 pub enum TagValue {
@@ -38,6 +37,19 @@ impl TagValue {
             TagValue::Element(el) => elements.get(*el).name,
         }
         .to_string()
+    }
+    pub fn matching_varaint(&self, other: &TagValue) -> bool {
+        if let TagValue::None = other {
+            return true;
+        }
+        match (self, other) {
+            (TagValue::None, TagValue::None) => true,
+            (TagValue::Integer(_), TagValue::Integer(_)) => true,
+            (TagValue::Float(_), TagValue::Float(_)) => true,
+            (TagValue::Boolean(_), TagValue::Boolean(_)) => true,
+            (TagValue::Element(_), TagValue::Element(_)) => true,
+            _ => false
+        }
     }
 }
 impl PartialEq for TagValue {
@@ -237,38 +249,54 @@ const fn color_to_int(r: u8, g: u8, b: u8) -> i64 {
     return ((r as i64) << 16) + ((g as i64) << 8) + (b as i64);
 }
 
-#[derive(Clone)]
 pub struct TagSpace {
-    array: Vec<TagValue>,
+    value_type: TagValue,
+    array: Vec<RwLock<TagValue>>,
     world_size: i32,
 }
 impl TagSpace {
+    fn get_index(&self, pos:IVec2) -> usize {
+        (pos.y*self.world_size+pos.x) as usize
+    }
     pub fn new_with_value(value: TagValue, world_size: i32) -> Self {
         Self {
-            array: vec![value; (world_size * world_size) as usize],
+            value_type: value,
+            array: (0..world_size * world_size).map(|_| RwLock::new(value)).collect(),
             world_size,
         }
     }
     pub fn get_tag(&self, pos: IVec2) -> TagValue {
-        let index = pos.y * self.world_size + pos.x;
-        *self.array.get(index as usize).unwrap_or(&TagValue::None)
+        if !pos_in_world(pos, self.world_size) {
+            return TagValue::None;
+        }
+        let index = self.get_index(pos);
+        *self.array[index].read().unwrap()
     }
     pub fn get_rel_tag(&self, origin: IVec2, pos: IVec2) -> TagValue {
-        let pos = origin.wrapping_add(pos);
-        if pos.x < 0 || pos.y < 0 || pos.x >= self.world_size || pos.y >= self.world_size {
+        let abs_pos = origin+pos;
+        if !pos_in_world(abs_pos, self.world_size) {
             return TagValue::None;
         }
 
-        let index = pos.y * self.world_size + pos.x;
-        *self.array.get(index as usize).unwrap_or(&TagValue::None)
+        let index = self.get_index(abs_pos);
+        *self.array[index].read().unwrap()
     }
-    pub fn get_tag_at_index(&self, index: i32) -> TagValue {
-        if index < 0 {
+    pub fn get_tag_at_index(&self, index: impl Into<i32>) -> TagValue {
+        let index: i32 = index.into();
+        if index < 0 || index > self.world_size.pow(2) {
             return TagValue::None;
         }
-        *self.array.get(index as usize).unwrap_or(&TagValue::None)
+        *self.array[index as usize].read().unwrap()
     }
-    pub fn par_iter_mut(&mut self) -> rayon::slice::IterMut<'_, TagValue> {
-        self.array.par_iter_mut()
+    pub fn set_tag(&self, pos: IVec2, value: TagValue) {
+        if !self.value_type.matching_varaint(&value) {
+            eprintln!("Trying to set a tag to an invalid variant");
+            return;
+        }
+        if !pos_in_world(pos, self.world_size) {
+            return;
+        }
+        let index = self.get_index(pos);
+        *self.array[index].write().unwrap() = value;
     }
 }

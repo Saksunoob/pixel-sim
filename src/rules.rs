@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::RwLock};
+use std::{collections::HashMap, time::Instant};
 
 use bevy::{
     ecs::system::Res,
@@ -17,36 +17,12 @@ use crate::{
 
 #[derive(Clone)]
 pub struct Ruleset {
-    pub rules: Vec<RuleType>,
+    pub rules: Vec<Rule>,
 }
 
 impl Ruleset {
-    pub fn new(rules: Vec<RuleType>) -> Self {
+    pub fn new(rules: Vec<Rule>) -> Self {
         Self { rules }
-    }
-    pub fn get_index(&self, index: (usize, usize)) -> Option<&RuleType> {
-        let rule = self.rules.get(index.0)?;
-        match rule {
-            RuleType::Rule { .. } => Some(rule),
-            RuleType::CompoundRule { rules, .. } => {
-                if index.1 == 0 {
-                    Some(rule)
-                } else {
-                    rules.get(index.1 - 1)
-                }
-            }
-        }
-    }
-    pub fn get_index_mut(&mut self, index: (usize, usize)) -> Option<&mut RuleType> {
-        let rule = self.rules.get_mut(index.0)?;
-        if index.1 == 0 {
-            return Some(rule);
-        } else {
-            match rule {
-                RuleType::CompoundRule { rules, .. } => rules.get_mut(index.1 - 1),
-                _ => None,
-            }
-        }
     }
 
     pub fn execute_rules(
@@ -57,124 +33,81 @@ impl Ruleset {
         frame: u128,
         input: &Res<Input<ScanCode>>,
     ) {
+        let start = Instant::now();
         self.rules.iter().for_each(|rule| {
-            if rule.enabled() {
-                self.execute_rule(rule, tiles, world_size, elements, frame, input);
-            }
+            rule.execute(tiles, world_size, elements, frame, input)
         });
+        println!("{}ms", start.elapsed().as_millis());
     }
-
-    pub fn execute_rule(
-        &self,
-        rule: &RuleType,
-        tiles: &mut HashMap<String, TagSpace>,
-        world_size: i32,
-        elements: &Elements,
-        frame: u128,
-        input: &Res<Input<ScanCode>>,
-    ) {
-        const CHUNK_COUNT: usize = 8;
-        let chunk_size: usize = world_size as usize / CHUNK_COUNT;
-
-        let mut actions: Vec<Vec<Action>> = (0..CHUNK_COUNT * CHUNK_COUNT)
-            .into_par_iter()
-            .map(|chunk| {
-                let chunk_x = chunk % CHUNK_COUNT;
-                let chunk_y = chunk / CHUNK_COUNT;
-                (0..chunk_size * chunk_size)
-                    .into_par_iter()
-                    .flat_map(|index| {
-                        let x = chunk_x * chunk_size + index % chunk_size;
-                        let y = chunk_y * chunk_size + index / chunk_size;
-                        rule.execute(
-                            IVec2::new(x as i32, y as i32),
-                            tiles,
-                            world_size,
-                            elements,
-                            frame,
-                            input,
-                        )
-                    })
-                    .collect()
-            })
-            .collect();
-
-        actions.par_iter_mut().for_each(|chunk| {
-            chunk
-                .par_sort_unstable_by(|a, b| a.priority.partial_cmp(&b.priority).unwrap().reverse())
-        });
-
-        let affected: Vec<RwLock<bool>> = (0..(world_size * world_size))
-            .into_par_iter()
-            .map(|_| RwLock::from(false))
-            .collect();
-
-        let is_affected = |index: &IVec2| -> bool {
-            if index.x < 0 || index.y < 0 || index.x >= world_size || index.y >= world_size {
-                return true;
-            }
-            *affected[get_index(&index, world_size)].read().unwrap()
-        };
-
-        let actions: HashMap<usize, ActionDataType> = actions
-            .into_par_iter()
-            .flat_map(|chunk| {
-                chunk
-                    .iter()
-                    .filter_map(|action| {
-                        // Find out a way to make this parrallel while preserving priority
-                        if action.get_affected().iter().any(|index| is_affected(index)) {
-                            return None;
-                        }
-                        action.get_affected().iter().for_each(|index| {
-                            *affected[get_index(index, world_size)].write().unwrap() = true
-                        });
-                        Some(
-                            action
-                                .new_states
-                                .iter()
-                                .map(|(pos, data)| (get_index(pos, world_size), data.clone()))
-                                .collect::<Vec<_>>(),
-                        )
-                    })
-                    .flatten()
-                    .collect::<Vec<(usize, ActionDataType)>>()
-            })
-            .collect();
-
-        let old_tiles = tiles.clone();
-
-        tiles.into_par_iter().for_each(|(tag_name, value_vec)| {
-            value_vec
-                .par_iter_mut()
-                .enumerate()
-                .filter(|(i, _)| *affected[*i].read().unwrap())
-                .for_each(|(i, tag_value)| {
-                    if let Some(action) = actions.get(&i) {
-                        match action {
-                            ActionDataType::Clone(from) => {
-                                *tag_value = old_tiles.get(tag_name).unwrap().get_tag(*from)
-                            }
-                            ActionDataType::ReplaceTags(new_tags) => {
-                                if let Some(new_value) = new_tags.get(tag_name) {
-                                    *tag_value = *new_value
-                                }
-                            }
-                            ActionDataType::ReplaceAllTags(new_tags) => {
-                                *tag_value =
-                                    new_tags.get(tag_name).copied().unwrap_or(TagValue::None)
-                            }
+    pub fn set_enabled(&mut self, index: (usize, Option<usize>), value: bool) {
+        // Get rule
+        let rule = self.rules.get_mut(index.0);
+        // Check if first index was valid
+        if let Some(rule) = rule {
+            // See if we should check for children
+            match index.1 {
+                // Child index exists
+                Some(inner_index) => {
+                    // Check that the initial rule is a compound
+                    if let Rule::Compound { rules, .. } = rule {
+                        let rule = rules.get_mut(inner_index);
+                        // Check if second index was valid
+                        if let Some(rule) = rule {
+                            rule.set_enabled(value);
                         }
                     }
-                });
-        });
+                },
+                None => rule.set_enabled(value),
+            }
+        }
+    }
+    pub fn get_enabled(&mut self, index: (usize, Option<usize>)) -> Option<bool> {
+        // Get rule
+        let rule = self.rules.get(index.0)?;
+
+        // If parent is disabled then so are children, so further checking is pointless
+        if !rule.get_enabled() {
+            return Some(false);
+        }
+        // See if we should check for children based on index
+        match index.1 {
+            // Child index exists
+            Some(inner_index) => {
+                // Check that the initial rule is a compound
+                if let Rule::Compound { rules, .. } = rule {
+                    let rule = rules.get(inner_index)?;
+                    // Check if second index was valid
+                    return Some(rule.get_self_enabled())
+                }
+                return None
+            },
+            None => Some(rule.get_enabled()),
+        }
+    }
+    pub fn get_self_enabled(&mut self, index: (usize, Option<usize>)) -> Option<bool> {
+        // Get rule
+        let rule = self.rules.get(index.0)?;
+        // See if we should check for children
+        match index.1 {
+            // Child index exists
+            Some(inner_index) => {
+                // Check that the initial rule is a compound
+                if let Rule::Compound { rules, .. } = rule {
+                    let rule = rules.get(inner_index)?;
+                    // Check if second index was valid
+                    return Some(rule.get_self_enabled())
+                }
+                return None
+            },
+            None => Some(rule.get_enabled()),
+        }
     }
 }
 
 #[derive(Clone)]
 pub enum ActionDataType {
     Clone(IVec2),
-    ReplaceTags(HashMap<String, TagValue>),
+    ReplaceTags(Vec<(String, TagValue)>),
     ReplaceAllTags(HashMap<String, TagValue>),
 }
 
@@ -189,9 +122,6 @@ impl Action {
             new_states: states,
             priority,
         }
-    }
-    pub fn get_affected(&self) -> Vec<IVec2> {
-        self.new_states.iter().map(|(pos, _)| *pos).collect()
     }
 }
 
@@ -442,91 +372,154 @@ impl Math {
     }
 }
 
-fn get_index(pos: &IVec2, world_size: i32) -> usize {
-    (pos.y * world_size + pos.x) as usize
+#[derive(Clone)]
+pub enum Rule {
+    Single(SingleRule),
+    Compound{
+        name: String,
+        enabled: bool,
+        rules: Vec<SingleRule>
+    }
 }
+impl Rule {
+    pub fn execute(
+        &self,
+        tiles: &HashMap<String, TagSpace>,
+        world_size: i32,
+        elements: &Elements,
+        frame: u128,
+        input: &Res<Input<ScanCode>>,
+    ) {
+        (0..world_size.pow(2)).into_par_iter().for_each(|index| {
+            let x = index%world_size;
+            let y = index/world_size;
 
-#[derive(Clone, Debug)]
-pub enum RuleType {
-    Rule {
-        name: String,
-        enabled: bool,
-        parent_enabled: bool,
-        condition: Condition,
-        rule_outcome: Vec<(IVec2, RuleOutcome)>,
-        priority: Math,
-    },
-    CompoundRule {
-        name: String,
-        enabled: bool,
-        parent_enabled: bool,
-        rules: Vec<RuleType>,
-    },
-}
-impl RuleType {
+            self.execute_at(IVec2::new(x, y), tiles, world_size, elements, frame, input);
+        })
+    }
+
+    fn execute_at(
+        &self,
+        pos: IVec2,
+        tiles: &HashMap<String, TagSpace>,
+        world_size: i32,
+        elements: &Elements,
+        frame: u128,
+        input: &Res<Input<ScanCode>>,
+    ) {
+        let actions = match self {
+            Rule::Single(rule) => rule.get_actions(pos, tiles, world_size, elements, frame, input),
+            Rule::Compound{enabled, rules, ..} => {
+                if *enabled {
+                    rules.iter().flat_map(|rule| rule.get_actions(pos, tiles, world_size, elements, frame, input)).collect()
+                } else {
+                    Vec::new()
+                }
+            },
+        };
+
+        let mut max_priority: (f64, Option<&Action>) = (f64::NEG_INFINITY, None);
+        actions.iter().for_each(|action| {
+            if action.priority > max_priority.0 {
+                max_priority = (action.priority, Some(action))
+            }
+        });
+        if let (_, Some(action)) = max_priority {
+            let new_values: Vec<(IVec2, Vec<(&String, TagValue)>)> = action.new_states.iter().map(|(pos, action_type)| {
+                match action_type {
+                    ActionDataType::Clone(from) => {
+                        (*pos, tiles.iter().map(|(name, tag_space)| {
+                            (name, tag_space.get_tag(*from))
+                        }).collect())
+                    },
+                    ActionDataType::ReplaceTags(tags) => {
+                        (*pos, tags.iter().map(|(name, value)| {
+                            (name, *value)
+                        }).collect())
+                    },
+                    ActionDataType::ReplaceAllTags(tags) => {
+                        (*pos, tiles.iter().map(|(name, _)| {
+                            (name, *tags.get(name).unwrap_or(&TagValue::None))
+                        }).collect())
+                    }
+                }
+            }).collect();
+
+            new_values.iter().for_each(|(pos, tags)| {
+                tags.iter().for_each(|(name, value)| {
+                    if let Some(tag_space) = tiles.get(*name) {
+                        tag_space.set_tag(*pos, *value)
+                    }
+                })
+            })
+        }
+    }
+    fn set_enabled(&mut self, value: bool) {
+        match self {
+            Rule::Single(rule) => rule.enabled = value,
+            Rule::Compound { enabled, rules, .. } => {
+                *enabled = value;
+                rules.iter_mut().for_each(|child| child.set_parent_enabled(value));
+            },
+        }
+    }
+    fn get_enabled(&self) -> bool {
+        match self {
+            Rule::Single(rule) => rule.enabled,
+            Rule::Compound { enabled, .. } => *enabled
+        }
+    }
     pub fn get_name(&self) -> &str {
         match self {
-            RuleType::Rule { name, .. } => &name,
-            RuleType::CompoundRule { name, .. } => &name,
+            Rule::Single(rule) => &rule.name,
+            Rule::Compound { name, .. } => name,
+        }
+    }
+}
+#[derive(Clone)]
+pub struct SingleRule {
+    name: String,
+    enabled: bool,
+    parent_enabled: bool,
+    condition: Condition,
+    rule_outcome: Vec<(IVec2, RuleOutcome)>,
+    priority: Math
+}
+
+impl SingleRule {
+
+    pub fn new(name: impl Into<String>, condition: Condition, rule_outcome: Vec<(IVec2, RuleOutcome)>, priority: Math) -> Self {
+        Self {
+            name: name.into(),
+            enabled: true,
+            parent_enabled: true,
+            condition,
+            rule_outcome,
+            priority,
         }
     }
 
-    pub fn enabled(&self) -> bool {
-        match self {
-            RuleType::Rule {
-                enabled,
-                parent_enabled,
-                ..
-            } => *enabled && *parent_enabled,
-            RuleType::CompoundRule {
-                enabled,
-                parent_enabled,
-                ..
-            } => *enabled && *parent_enabled,
-        }
+    pub fn get_name(&self) -> &str {
+        &self.name
     }
 
-    pub fn self_enabled(&self) -> bool {
-        match self {
-            RuleType::Rule { enabled, .. } => *enabled,
-            RuleType::CompoundRule { enabled, .. } => *enabled,
-        }
+    pub fn get_enabled(&self) -> bool {
+        self.enabled && self.parent_enabled
+    }
+
+    pub fn get_self_enabled(&self) -> bool {
+        self.enabled
     }
 
     pub fn set_enabled(&mut self, value: bool) {
-        match self {
-            RuleType::Rule { enabled, .. } => *enabled = value,
-            RuleType::CompoundRule {
-                enabled,
-                parent_enabled,
-                rules,
-                ..
-            } => {
-                *enabled = value;
-                rules
-                    .iter_mut()
-                    .for_each(|child| child.set_parent_enabled(*parent_enabled && *enabled))
-            }
-        }
-    }
-    fn set_parent_enabled(&mut self, value: bool) {
-        match self {
-            RuleType::Rule { parent_enabled, .. } => *parent_enabled = value,
-            RuleType::CompoundRule {
-                parent_enabled,
-                enabled,
-                rules,
-                ..
-            } => {
-                *parent_enabled = value;
-                rules
-                    .iter_mut()
-                    .for_each(|child| child.set_parent_enabled(*parent_enabled && *enabled))
-            }
-        }
+        self.enabled = value;
     }
 
-    pub fn execute(
+    fn set_parent_enabled(&mut self, value: bool) {
+        self.parent_enabled = value;
+    }
+
+    fn get_actions(
         &self,
         pos: IVec2,
         tiles: &HashMap<String, TagSpace>,
@@ -535,67 +528,49 @@ impl RuleType {
         frame: u128,
         input: &Res<Input<ScanCode>>,
     ) -> Vec<Action> {
-        match self {
-            RuleType::Rule {
-                condition,
-                rule_outcome,
-                priority,
-                ..
-            } => {
-                if condition.evaluate(pos, tiles, world_size, input) {
-                    return vec![Action::new(
-                        rule_outcome
-                            .iter()
-                            .map(|(rel_pos, rule_outcome)| {
-                                (
-                                    pos.wrapping_add(*rel_pos),
-                                    match rule_outcome {
-                                        RuleOutcome::Clone(from) => {
-                                            ActionDataType::Clone(pos.wrapping_add(*from))
-                                        }
-                                        RuleOutcome::ChangeTags(tags) => {
-                                            ActionDataType::ReplaceTags(
-                                                tags.iter()
-                                                    .map(|(tag, math)| {
-                                                        (
-                                                            tag.to_string(),
-                                                            math.evaluate(pos, tiles, world_size),
-                                                        )
-                                                    })
-                                                    .collect(),
-                                            )
-                                        }
-                                        RuleOutcome::SetTags(tags) => ActionDataType::ReplaceTags(
-                                            tags.iter().cloned().collect(),
-                                        ),
-                                        RuleOutcome::SetElement(el) => {
-                                            ActionDataType::ReplaceAllTags(
-                                                elements
-                                                    .get_el(el.evaluate(pos, tiles, world_size))
-                                                    .iter()
-                                                    .cloned()
-                                                    .collect(),
-                                            )
-                                        }
-                                    },
-                                )
-                            })
-                            .collect(),
-                        priority.evaluate(pos, tiles, world_size).as_float(),
-                    )];
-                }
-                Vec::new()
-            }
-            RuleType::CompoundRule { rules, .. } => rules
-                .iter()
-                .filter_map(|rule| {
-                    if rule.enabled() {
-                        return Some(rule.execute(pos, tiles, world_size, elements, frame, input));
-                    }
-                    None
-                })
-                .flatten()
-                .collect(),
+        if !self.condition.evaluate(pos, tiles, world_size, input) || !self.get_enabled() {
+            return Vec::new();
         }
+
+        vec![Action::new(
+            self.rule_outcome
+                .iter()
+                .map(|(rel_pos, rule_outcome)| {
+                    (
+                        pos.wrapping_add(*rel_pos),
+                        match rule_outcome {
+                            RuleOutcome::Clone(from) => {
+                                ActionDataType::Clone(pos.wrapping_add(*from))
+                            }
+                            RuleOutcome::ChangeTags(tags) => {
+                                ActionDataType::ReplaceTags(
+                                    tags.iter()
+                                        .map(|(tag, math)| {
+                                            (
+                                                tag.to_string(),
+                                                math.evaluate(pos, tiles, world_size),
+                                            )
+                                        })
+                                        .collect(),
+                                )
+                            }
+                            RuleOutcome::SetTags(tags) => ActionDataType::ReplaceTags(
+                                tags.iter().cloned().collect(),
+                            ),
+                            RuleOutcome::SetElement(el) => {
+                                ActionDataType::ReplaceAllTags(
+                                    elements
+                                        .get_el(el.evaluate(pos, tiles, world_size))
+                                        .iter()
+                                        .cloned()
+                                        .collect(),
+                                )
+                            }
+                        },
+                    )
+                })
+                .collect(),
+            self.priority.evaluate(pos, tiles, world_size).as_float(),
+        )]
     }
 }
