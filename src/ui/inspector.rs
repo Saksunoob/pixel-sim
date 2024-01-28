@@ -171,9 +171,8 @@ fn update_inspector(
             add_section("Tags: ", 0, Color::WHITE);
 
             for (name, value) in world
-                .bits
-                .iter()
-                .map(|(name, space)| (name, space.get_tag(pos)))
+                .tags
+                .get_tags_at(pos).iter()
             {
                 add_section(
                     &format!("{}: {}", name, value.to_string(&world.elements)),

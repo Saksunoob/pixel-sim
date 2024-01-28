@@ -45,7 +45,7 @@ fn main() {
                         },
                     ),
                 }),
-            WorldPlugin(250, elements, ruleset),
+            WorldPlugin(256, elements, ruleset),
             CameraPlugin,
             UIPlugin,
         ))

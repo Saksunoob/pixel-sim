@@ -32,7 +32,7 @@ impl Plugin for WorldPlugin {
 #[derive(Resource)]
 pub struct World {
     pub names: Vec<String>,
-    pub bits: HashMap<String, TagSpace>,
+    pub tags: Tags,
     pub world_size: i32,
     pub ruleset: Ruleset,
     pub elements: Elements,
@@ -65,7 +65,7 @@ impl World {
 
         Self {
             names,
-            bits,
+            tags: Tags::new(bits),
             world_size: size as i32,
             ruleset,
             elements,
@@ -73,7 +73,7 @@ impl World {
     }
     pub fn step(&mut self, frame: u128, input: &Res<Input<ScanCode>>) {
         self.ruleset.execute_rules(
-            &mut self.bits,
+            &mut self.tags,
             self.world_size,
             &self.elements,
             frame,
@@ -81,7 +81,7 @@ impl World {
         );
     }
     pub fn get_image(&self) -> Image {
-        let colors = self.bits.get("color").unwrap();
+        let colors = self.tags.get_space("color").unwrap();
         let image_data = (0..self.world_size * self.world_size)
             .into_par_iter()
             .flat_map(|index| {

@@ -16,7 +16,8 @@
             ["color", "#FFFFFF"],
             ["mass", 1.0],
             ["flammable", true],
-            ["burn_time", 5],
+            ["burning", false],
+            ["burn_time", 1],
             ["on_burn_out", "flame"]
         ]
     },

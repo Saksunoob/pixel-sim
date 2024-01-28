@@ -1,6 +1,7 @@
 use bevy::math::IVec2;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Deserializer, Serialize};
-use std::{ops::{Add, Div, Mul, Sub}, sync::RwLock};
+use std::{ops::{Add, Div, Mul, Sub}, collections::HashMap};
 
 use crate::{hash, world::{pos_in_world, Elements}};
 
@@ -251,7 +252,7 @@ const fn color_to_int(r: u8, g: u8, b: u8) -> i64 {
 
 pub struct TagSpace {
     value_type: TagValue,
-    array: Vec<RwLock<TagValue>>,
+    array: Vec<TagValue>,
     world_size: i32,
 }
 impl TagSpace {
@@ -261,7 +262,7 @@ impl TagSpace {
     pub fn new_with_value(value: TagValue, world_size: i32) -> Self {
         Self {
             value_type: value,
-            array: (0..world_size * world_size).map(|_| RwLock::new(value)).collect(),
+            array: vec![value; (world_size*world_size) as usize],
             world_size,
         }
     }
@@ -270,25 +271,21 @@ impl TagSpace {
             return TagValue::None;
         }
         let index = self.get_index(pos);
-        *self.array[index].read().unwrap()
+        self.array[index]
     }
     pub fn get_rel_tag(&self, origin: IVec2, pos: IVec2) -> TagValue {
         let abs_pos = origin+pos;
-        if !pos_in_world(abs_pos, self.world_size) {
-            return TagValue::None;
-        }
-
-        let index = self.get_index(abs_pos);
-        *self.array[index].read().unwrap()
+        self.get_tag(abs_pos)
     }
+
     pub fn get_tag_at_index(&self, index: impl Into<i32>) -> TagValue {
         let index: i32 = index.into();
         if index < 0 || index > self.world_size.pow(2) {
             return TagValue::None;
         }
-        *self.array[index as usize].read().unwrap()
+        self.array[index as usize]
     }
-    pub fn set_tag(&self, pos: IVec2, value: TagValue) {
+    pub fn set_tag(&mut self, pos: IVec2, value: TagValue) {
         if !self.value_type.matching_varaint(&value) {
             eprintln!("Trying to set a tag to an invalid variant");
             return;
@@ -297,6 +294,41 @@ impl TagSpace {
             return;
         }
         let index = self.get_index(pos);
-        *self.array[index].write().unwrap() = value;
+        self.array[index] = value;
+    }
+}
+
+pub struct Tags {
+    tags: HashMap<String, TagSpace>
+}
+impl Tags {
+    pub fn new(tags: HashMap<String, TagSpace>) -> Self {
+        Self {
+            tags
+        }
+    }
+    pub fn get_tag_at(&self, tag: &str, pos: IVec2) -> TagValue {
+        if let Some(tag_space) = self.tags.get(tag) {
+            return tag_space.get_tag(pos)
+        }
+        return TagValue::None;
+    }
+    pub fn get_tags_at(&self, pos: IVec2) -> HashMap<String, TagValue> {
+        self.tags.par_iter().map(|(tag_name, tag_space)| {
+            (tag_name.to_string(), tag_space.get_tag(pos))
+        }).collect()
+    }
+    pub fn get_space(&self, space: &str) -> Option<&TagSpace> {
+        self.tags.get(space)
+    }
+    pub fn set_tag_at(&mut self, pos: IVec2, tag: &str, value: TagValue) {
+        if let Some(tag_space) = self.tags.get_mut(tag) {
+            tag_space.set_tag(pos, value)
+        }
+    }
+    pub fn set_tags_at(&mut self, pos: IVec2, new_tags: HashMap<String, TagValue>) {
+        self.tags.iter_mut().for_each(|(name, space)| {
+            space.set_tag(pos, *new_tags.get(name).unwrap_or(&TagValue::None))
+        })
     }
 }
