@@ -1,0 +1,8 @@
+{
+    "color": "integer",
+    "mass": "float",
+    "burning": "boolean",
+    "flammable": "boolean",
+    "burn_time": "integer",
+    "on_burn_out": "element"
+}

@@ -1,17 +1,19 @@
 use bevy::math::IVec2;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use serde::{Deserialize, Deserializer, Serialize};
-use std::{ops::{Add, Div, Mul, Sub}, collections::HashMap};
+use serde_json::Value;
+use std::{
+    collections::HashMap,
+    ops::{Add, Div, Mul, Sub},
+};
 
-use crate::{hash, world::{pos_in_world, Elements}};
+use crate::world::{pos_in_world, Element, Elements};
 
-#[derive(Debug, Copy, Clone, Serialize)]
+#[derive(Debug, Copy, Clone)]
 pub enum TagValue {
     None,
     Integer(i64),
     Float(f64),
     Boolean(bool),
-    Element(u64),
+    Element(usize),
 }
 impl TagValue {
     pub fn as_float(&self) -> f64 {
@@ -35,9 +37,8 @@ impl TagValue {
                     "False".to_string()
                 }
             }
-            TagValue::Element(el) => elements.get(*el).name,
+            TagValue::Element(el) => elements.get(*el).name.to_string(),
         }
-        .to_string()
     }
     pub fn matching_varaint(&self, other: &TagValue) -> bool {
         if let TagValue::None = other {
@@ -49,7 +50,38 @@ impl TagValue {
             (TagValue::Float(_), TagValue::Float(_)) => true,
             (TagValue::Boolean(_), TagValue::Boolean(_)) => true,
             (TagValue::Element(_), TagValue::Element(_)) => true,
-            _ => false
+            _ => false,
+        }
+    }
+    pub fn from_value(value: &Value, elements: &Elements) -> Self {
+        match value {
+            Value::Null => TagValue::None,
+            Value::Bool(b) => TagValue::Boolean(*b),
+            Value::Number(n) => {
+                if let Some(int) = n.as_i64() {
+                    return TagValue::Integer(int);
+                }
+                return TagValue::Float(n.as_f64().unwrap());
+            }
+            Value::String(str) => {
+                if str.starts_with('#') {
+                    let r = u8::from_str_radix(&str[1..3], 16);
+                    let g = u8::from_str_radix(&str[3..5], 16);
+                    let b = u8::from_str_radix(&str[5..7], 16);
+                    if let (Ok(r), Ok(g), Ok(b)) = (r, g, b) {
+                        return TagValue::Integer(color_to_int(r, g, b));
+                    } else {
+                        panic!("invalid color tag {str}")
+                    }
+                }
+                if let Some(tag) = elements.get_index(str) {
+                    return TagValue::Element(tag);
+                } else {
+                    panic!("invalid element tag {str}")
+                }
+            }
+            Value::Array(_) => panic!("invalid tag value {value:?}"),
+            Value::Object(_) => panic!("invalid tag value {value:?}"),
         }
     }
 }
@@ -179,90 +211,54 @@ impl Div for TagValue {
         }
     }
 }
-impl<'de> Deserialize<'de> for TagValue {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct TagValueVisitor;
-
-        impl<'de> serde::de::Visitor<'de> for TagValueVisitor {
-            type Value = TagValue;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                formatter.write_str("a valid TagValue variant")
-            }
-
-            fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                return Ok(TagValue::Integer(v));
-            }
-            fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                self.visit_i64(v as i64)
-            }
-            fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                Ok(TagValue::Float(v))
-            }
-            fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                Ok(TagValue::Boolean(v))
-            }
-
-            // Deserialize based on the type of the value
-            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                if value.starts_with('#') {
-                    let r = u8::from_str_radix(&value[1..3], 16);
-                    let g = u8::from_str_radix(&value[3..5], 16);
-                    let b = u8::from_str_radix(&value[5..7], 16);
-                    if let (Ok(r), Ok(g), Ok(b)) = (r, g, b) {
-                        return Ok(TagValue::Integer(color_to_int(r, g, b)));
-                    } else {
-                        eprintln!("invalid color tag {value}")
-                    }
-                }
-                Ok(TagValue::Element(hash(value)))
-            }
-            fn visit_unit<E>(self) -> Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                Ok(TagValue::None)
-            }
-        }
-        deserializer.deserialize_any(TagValueVisitor)
-    }
-}
 
 const fn color_to_int(r: u8, g: u8, b: u8) -> i64 {
     return ((r as i64) << 16) + ((g as i64) << 8) + (b as i64);
 }
 
+#[derive(Clone)]
+pub struct Tags {
+    tag_mapping: HashMap<String, usize>,
+    tag_types: Vec<TagValue>,
+}
+impl Tags {
+    pub fn new(tags: Vec<(impl ToString, TagValue)>) -> Self {
+        Self {
+            tag_mapping: tags
+                .iter()
+                .enumerate()
+                .map(|(index, (name, _))| (name.to_string(), index))
+                .collect(),
+            tag_types: tags.into_iter().map(|(_, value)| value).collect(),
+        }
+    }
+    pub fn iter(&self) -> std::ops::Range<usize> {
+        0..self.tag_mapping.len()
+    }
+    pub fn get_index(&self, str: impl ToString) -> Option<usize> {
+        self.tag_mapping.get(&str.to_string()).copied()
+    }
+    pub fn get_name(&self, index: usize) -> Option<&String> {
+        self.tag_mapping
+            .iter()
+            .find(|(_, tag_index)| **tag_index == index)
+            .and_then(|(name, _)| Some(name))
+    }
+}
+
 pub struct TagSpace {
     value_type: TagValue,
     array: Vec<TagValue>,
-    world_size: i32,
+    world_size: usize,
 }
 impl TagSpace {
-    fn get_index(&self, pos:IVec2) -> usize {
-        (pos.y*self.world_size+pos.x) as usize
+    fn get_index(&self, pos: IVec2) -> usize {
+        (pos.y * self.world_size as i32 + pos.x) as usize
     }
-    pub fn new_with_value(value: TagValue, world_size: i32) -> Self {
+    pub fn new_with_value(value: TagValue, value_type: TagValue, world_size: usize) -> Self {
         Self {
-            value_type: value,
-            array: vec![value; (world_size*world_size) as usize],
+            value_type: value_type,
+            array: vec![value; (world_size * world_size) as usize],
             world_size,
         }
     }
@@ -273,21 +269,20 @@ impl TagSpace {
         let index = self.get_index(pos);
         self.array[index]
     }
-    pub fn get_rel_tag(&self, origin: IVec2, pos: IVec2) -> TagValue {
-        let abs_pos = origin+pos;
-        self.get_tag(abs_pos)
-    }
 
     pub fn get_tag_at_index(&self, index: impl Into<i32>) -> TagValue {
         let index: i32 = index.into();
-        if index < 0 || index > self.world_size.pow(2) {
+        if index < 0 || index > self.world_size.pow(2) as i32 {
             return TagValue::None;
         }
         self.array[index as usize]
     }
     pub fn set_tag(&mut self, pos: IVec2, value: TagValue) {
         if !self.value_type.matching_varaint(&value) {
-            eprintln!("Trying to set a tag to an invalid variant");
+            eprintln!(
+                "Trying to set a tag of type {:?} to an invalid variant {:?}",
+                self.value_type, value
+            );
             return;
         }
         if !pos_in_world(pos, self.world_size) {
@@ -298,37 +293,35 @@ impl TagSpace {
     }
 }
 
-pub struct Tags {
-    tags: HashMap<String, TagSpace>
+pub struct SimualtionState {
+    state: Vec<TagSpace>,
+    pub tags: Tags,
 }
-impl Tags {
-    pub fn new(tags: HashMap<String, TagSpace>) -> Self {
+impl SimualtionState {
+    pub fn new(tags: Tags, size: usize, default_element: &Element) -> Self {
         Self {
-            tags
+            state: tags
+                .iter()
+                .map(|tag| {
+                    TagSpace::new_with_value(default_element.tags[tag], tags.tag_types[tag], size)
+                })
+                .collect(),
+            tags,
         }
     }
-    pub fn get_tag_at(&self, tag: &str, pos: IVec2) -> TagValue {
-        if let Some(tag_space) = self.tags.get(tag) {
-            return tag_space.get_tag(pos)
-        }
-        return TagValue::None;
+    pub fn get_tag_at(&self, tag: &usize, pos: IVec2) -> TagValue {
+        self.state[*tag].get_tag(pos)
     }
-    pub fn get_tags_at(&self, pos: IVec2) -> HashMap<String, TagValue> {
-        self.tags.par_iter().map(|(tag_name, tag_space)| {
-            (tag_name.to_string(), tag_space.get_tag(pos))
-        }).collect()
+    pub fn get_tags_at(&self, pos: IVec2) -> Vec<TagValue> {
+        self.state.iter().map(|space| space.get_tag(pos)).collect()
     }
-    pub fn get_space(&self, space: &str) -> Option<&TagSpace> {
-        self.tags.get(space)
+    pub fn get_space(&self, space: usize) -> &TagSpace {
+        &self.state[space]
     }
-    pub fn set_tag_at(&mut self, pos: IVec2, tag: &str, value: TagValue) {
-        if let Some(tag_space) = self.tags.get_mut(tag) {
-            tag_space.set_tag(pos, value)
-        }
-    }
-    pub fn set_tags_at(&mut self, pos: IVec2, new_tags: HashMap<String, TagValue>) {
-        self.tags.iter_mut().for_each(|(name, space)| {
-            space.set_tag(pos, *new_tags.get(name).unwrap_or(&TagValue::None))
-        })
+    pub fn set_tags_at(&mut self, pos: IVec2, new_tags: Vec<TagValue>) {
+        self.state
+            .iter_mut()
+            .enumerate()
+            .for_each(|(tag, space)| space.set_tag(pos, new_tags[tag]))
     }
 }

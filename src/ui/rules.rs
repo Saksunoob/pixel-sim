@@ -76,7 +76,14 @@ pub fn spawn_rules_panel(
 
                         if let crate::Rule::Compound { rules, .. } = rule {
                             rules.iter().enumerate().for_each(|(child_index, child)| {
-                                spawn_list_rule(list, child.get_name(), (index, Some(child_index)), 1, fonts, checkbox);
+                                spawn_list_rule(
+                                    list,
+                                    child.get_name(),
+                                    (index, Some(child_index)),
+                                    1,
+                                    fonts,
+                                    checkbox,
+                                );
                             })
                         }
                     }

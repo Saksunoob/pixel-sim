@@ -170,12 +170,13 @@ fn update_inspector(
 
             add_section("Tags: ", 0, Color::WHITE);
 
-            for (name, value) in world
-                .tags
-                .get_tags_at(pos).iter()
-            {
+            for (tag, value) in world.state.get_tags_at(pos).iter().enumerate() {
                 add_section(
-                    &format!("{}: {}", name, value.to_string(&world.elements)),
+                    &format!(
+                        "{}: {}",
+                        world.state.tags.get_name(tag).unwrap(),
+                        value.to_string(&world.elements)
+                    ),
                     1,
                     Color::WHITE,
                 );
@@ -208,7 +209,10 @@ fn pixel_selector(
     let mut hover_overlay = hover_overlay.single_mut();
     let mut overlay = overlay.single_mut();
 
-    let inspect_panel = panels.iter().find(|(_, panel)| panel.0 == "Inspector").unwrap();
+    let inspect_panel = panels
+        .iter()
+        .find(|(_, panel)| panel.0 == "Inspector")
+        .unwrap();
 
     // Set overlay visibility
     if inspect_panel.0.display == Display::Flex {
@@ -244,17 +248,21 @@ fn pixel_selector(
 
     if mouse.just_pressed(MouseButton::Left) {
         // If click happened on the simulation
-        if mouse_pixel_pos.x >= 0 && mouse_pixel_pos.y >= 0 && mouse_pixel_pos.x < world.world_size && mouse_pixel_pos.y < world.world_size {
+        if mouse_pixel_pos.x >= 0
+            && mouse_pixel_pos.y >= 0
+            && mouse_pixel_pos.x < world.world_size
+            && mouse_pixel_pos.y < world.world_size
+        {
             // Select clicked pixel
             inspecting.0 = Some(mouse_pixel_pos);
             println!("{}", mouse_pixel_pos);
             // Set selection overlay position
             overlay.0.translation =
-            Vec3::new(mouse_pos.x / 2., mouse_pos.y / 2., 0.).floor() * 2. + Vec3::ONE;
-        } else { // If click happened outside the simulation
+                Vec3::new(mouse_pos.x / 2., mouse_pos.y / 2., 0.).floor() * 2. + Vec3::ONE;
+        } else {
+            // If click happened outside the simulation
             // Deselect
             inspecting.0 = None;
         }
-        
     }
 }

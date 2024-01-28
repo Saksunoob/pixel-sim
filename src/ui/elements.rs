@@ -65,23 +65,18 @@ pub fn spawn_elements_panel(
                 })
                 .with_children(|list| {
                     for element in world.elements.elements.iter() {
-                        let color_tag = element.1.tags.iter().find(|(tag, _)| tag == "color");
-                        let color = match color_tag {
-                            Some((_, value)) => {
-                                if let TagValue::Integer(value) = value {
-                                    [
-                                        (value >> 16) as u8 as f32,
-                                        (value >> 8) as u8 as f32,
-                                        *value as u8 as f32,
-                                        255 as f32,
-                                    ]
-                                } else {
-                                    Color::PURPLE.as_rgba_f32()
-                                }
-                            }
-                            None => todo!(),
+                        let color_tag = element.tags[world.state.tags.get_index("color").unwrap()];
+                        let color = if let TagValue::Integer(value) = color_tag {
+                            [
+                                (value >> 16) as u8 as f32,
+                                (value >> 8) as u8 as f32,
+                                value as u8 as f32,
+                                255 as f32,
+                            ]
+                        } else {
+                            Color::PURPLE.as_rgba_f32()
                         };
-                        spawn_list_element(list, &element.1.name, fonts, &color, asset_server);
+                        spawn_list_element(list, &element.name, fonts, &color, asset_server);
                     }
                 });
         });

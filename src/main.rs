@@ -10,7 +10,7 @@ use bevy::{
         RenderPlugin,
     },
 };
-use file_parser::load_rules;
+use file_parser::{load_rules, load_tags};
 use rules::*;
 use ui::UIPlugin;
 use world::WorldPlugin;
@@ -26,8 +26,9 @@ mod ui;
 mod world;
 
 fn main() {
-    let elements = load_elements(Path::new("src/elements.json")).unwrap();
-    let rules = load_rules(Path::new("src/rules.json")).unwrap();
+    let tags = load_tags(Path::new("src/tags.json")).unwrap();
+    let elements = load_elements(Path::new("src/elements.json"), &tags).unwrap();
+    let rules = load_rules(Path::new("src/rules.json"), &tags, &elements).unwrap();
 
     let ruleset = Ruleset::new(rules);
 
@@ -45,7 +46,7 @@ fn main() {
                         },
                     ),
                 }),
-            WorldPlugin(256, elements, ruleset),
+            WorldPlugin(256, tags, elements, ruleset),
             CameraPlugin,
             UIPlugin,
         ))

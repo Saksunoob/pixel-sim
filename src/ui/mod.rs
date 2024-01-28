@@ -51,16 +51,16 @@ impl Fonts {
 
 enum HorizontalSide {
     Left,
-    Right
+    Right,
 }
 enum VerticalSide {
     Top,
-    Bottom
+    Bottom,
 }
 enum AnimationType {
-    EaseOutElastic
+    EaseOutElastic,
 }
-#[derive(Component)]  
+#[derive(Component)]
 pub struct PositionAnimation {
     animation_type: AnimationType,
     horizontal_side: HorizontalSide,
@@ -68,15 +68,14 @@ pub struct PositionAnimation {
     start: Vec2,
     end: Vec2,
     start_time: f32,
-    duration: f32
+    duration: f32,
 }
 impl PositionAnimation {
     pub fn get_pos(&self, time: f32) -> Vec2 {
         match self.animation_type {
             AnimationType::EaseOutElastic => {
-
                 const BOUNCES: f32 = (2. * PI) / 3.;
-                let t = (time-self.start_time) / self.duration;
+                let t = (time - self.start_time) / self.duration;
 
                 if t <= 0. {
                     return self.start;
@@ -87,7 +86,7 @@ impl PositionAnimation {
 
                 let lerp = (2_f32).powf(-10. * t) * ((t * 10. - 0.75) * BOUNCES).sin() + 1.;
                 self.start.lerp(self.end, lerp)
-            },
+            }
         }
     }
 }
@@ -134,26 +133,28 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
         })
         .with_children(|ui| {
             // Info panel
-            ui.spawn((NodeBundle {
-                style: Style {
-                    width: Val::Auto,
-                    height: Val::Percent(100.0),
-                    align_self: AlignSelf::End,
-                    flex_direction: FlexDirection::Row,
+            ui.spawn((
+                NodeBundle {
+                    style: Style {
+                        width: Val::Auto,
+                        height: Val::Percent(100.0),
+                        align_self: AlignSelf::End,
+                        flex_direction: FlexDirection::Row,
+                        ..default()
+                    },
                     ..default()
                 },
-                ..default()
-            },
-            InfoPanel,
-            PositionAnimation {
-                animation_type: AnimationType::EaseOutElastic,
-                horizontal_side: HorizontalSide::Left,
-                vertical_side: VerticalSide::Top,
-                start: Vec2::ZERO,
-                end: Vec2::ZERO,
-                start_time: 0.,
-                duration: 0.1,
-            }))
+                InfoPanel,
+                PositionAnimation {
+                    animation_type: AnimationType::EaseOutElastic,
+                    horizontal_side: HorizontalSide::Left,
+                    vertical_side: VerticalSide::Top,
+                    start: Vec2::ZERO,
+                    end: Vec2::ZERO,
+                    start_time: 0.,
+                    duration: 0.1,
+                },
+            ))
             .with_children(|info_panel| {
                 rules::spawn_rules_panel(info_panel, &fonts, &world, &checkbox);
                 elements::spawn_elements_panel(info_panel, &fonts, &world, &asset_server);
@@ -322,25 +323,22 @@ fn toggle_menu(
     match panel_opened {
         Some(opened_panel) => {
             panels.iter_mut().for_each(|mut panel| {
-            if panel.1.0 != opened_panel {
-                panel.0.display = Display::None;
+                if panel.1 .0 != opened_panel {
+                    panel.0.display = Display::None;
+                }
+            });
+            if !panel_open {
+                let mut info_panel = info_panel.single_mut();
+                info_panel.start = Vec2::new(-50., 0.);
+                info_panel.end = Vec2::new(0., 0.);
+                info_panel.start_time = time.elapsed_seconds();
             }
-        });
-        if !panel_open {
-            let mut info_panel = info_panel.single_mut();
-            info_panel.start = Vec2::new(-50., 0.);
-            info_panel.end = Vec2::new(0., 0.);
-            info_panel.start_time = time.elapsed_seconds();
         }
-    },
         None => return,
     }
 }
 
-fn apply_position_animation (
-    mut objects: Query<(&mut Style, &PositionAnimation)>,
-    time: Res<Time>
-) {
+fn apply_position_animation(mut objects: Query<(&mut Style, &PositionAnimation)>, time: Res<Time>) {
     for (mut style, animation) in objects.iter_mut() {
         let pos = animation.get_pos(time.elapsed_seconds());
         match &animation.horizontal_side {

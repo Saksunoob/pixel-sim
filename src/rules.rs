@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::{Duration, Instant}};
+use std::time::{Duration, Instant};
 
 use bevy::{
     ecs::system::Res,
@@ -7,11 +7,10 @@ use bevy::{
 };
 use rand::random;
 use rayon::prelude::*;
-use serde::Deserialize;
 use serde_json::Value;
 
 use crate::{
-    tags::{TagValue, Tags},
+    tags::{SimualtionState, TagValue, Tags},
     world::Elements,
 };
 
@@ -27,41 +26,47 @@ impl Ruleset {
 
     pub fn execute_rules(
         &self,
-        tags: &mut Tags,
+        state: &mut SimualtionState,
         world_size: i32,
         elements: &Elements,
         frame: u128,
         input: &Res<Input<ScanCode>>,
     ) {
-        const CHUNKS: i32 = 16;
-
         let start = Instant::now();
         let mut times: (Duration, Duration) = (Duration::ZERO, Duration::ZERO);
         self.rules.iter().for_each(|rule| {
             let start_actions = Instant::now();
-            let actions = rule.execute(tags, world_size, elements, frame, input);
+            let actions = rule.execute(state, world_size, elements, frame, input);
             times.0 += start_actions.elapsed();
 
-            let mut modified = vec![false; (world_size*world_size) as usize];
+            let mut modified = vec![false; (world_size * world_size) as usize];
 
-            let get_index = |pos: IVec2| -> usize {(pos.y*world_size+pos.x) as usize};
+            let get_index = |pos: IVec2| -> usize { (pos.y * world_size + pos.x) as usize };
 
             let start_modification = Instant::now();
             actions.into_iter().for_each(|pixel| {
                 for action in pixel {
-                    if action.iter().any(|(pos, _)| *modified.get(get_index(*pos)).unwrap_or(&true)) {
+                    if action
+                        .iter()
+                        .any(|(pos, _)| *modified.get(get_index(*pos)).unwrap_or(&true))
+                    {
                         continue;
                     }
                     for (pos, new_tags) in action {
-                        tags.set_tags_at(pos, new_tags);
+                        state.set_tags_at(pos, new_tags);
                         modified[get_index(pos)] = true;
                     }
                 }
             });
-            
+
             times.1 += start_modification.elapsed();
         });
-        println!("{}ms ({}ms, {}ms)", start.elapsed().as_millis(), times.0.as_millis(), times.1.as_millis());
+        println!(
+            "{}ms ({}ms, {}ms)",
+            start.elapsed().as_millis(),
+            times.0.as_millis(),
+            times.1.as_millis()
+        );
     }
     pub fn set_enabled(&mut self, index: (usize, Option<usize>), value: bool) {
         // Get rule
@@ -80,7 +85,7 @@ impl Ruleset {
                             rule.set_enabled(value);
                         }
                     }
-                },
+                }
                 None => rule.set_enabled(value),
             }
         }
@@ -101,10 +106,10 @@ impl Ruleset {
                 if let Rule::Compound { rules, .. } = rule {
                     let rule = rules.get(inner_index)?;
                     // Check if second index was valid
-                    return Some(rule.get_self_enabled())
+                    return Some(rule.get_self_enabled());
                 }
-                return None
-            },
+                return None;
+            }
             None => Some(rule.get_enabled()),
         }
     }
@@ -119,10 +124,10 @@ impl Ruleset {
                 if let Rule::Compound { rules, .. } = rule {
                     let rule = rules.get(inner_index)?;
                     // Check if second index was valid
-                    return Some(rule.get_self_enabled())
+                    return Some(rule.get_self_enabled());
                 }
-                return None
-            },
+                return None;
+            }
             None => Some(rule.get_enabled()),
         }
     }
@@ -131,8 +136,8 @@ impl Ruleset {
 #[derive(Clone)]
 pub enum ActionDataType {
     Clone(IVec2),
-    ReplaceTags(Vec<(String, TagValue)>),
-    ReplaceAllTags(HashMap<String, TagValue>),
+    ReplaceTags(Vec<(usize, TagValue)>),
+    ReplaceAllTags(Vec<TagValue>),
 }
 
 #[derive(Clone)]
@@ -149,16 +154,16 @@ impl Action {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug)]
 pub enum ConditionType {
     Random(f64),
     Input(u32),
-    Is(IVec2, String, TagValue),
-    Eq((IVec2, IVec2), String),
-    Lt((IVec2, IVec2), String),
-    Lte((IVec2, IVec2), String),
-    Gt((IVec2, IVec2), String),
-    Gte((IVec2, IVec2), String),
+    Is(IVec2, usize, TagValue),
+    Eq((IVec2, IVec2), usize),
+    Lt((IVec2, IVec2), usize),
+    Lte((IVec2, IVec2), usize),
+    Gt((IVec2, IVec2), usize),
+    Gte((IVec2, IVec2), usize),
 }
 
 #[derive(Clone, Debug)]
@@ -172,42 +177,42 @@ impl Condition {
     pub fn evaluate(
         &self,
         origin: IVec2,
-        tags: &Tags,
+        state: &SimualtionState,
         world_size: i32,
         input: &Res<Input<ScanCode>>,
     ) -> bool {
         match self {
             Condition::And(conditions) => conditions
                 .iter()
-                .all(|condition| condition.evaluate(origin, tags, world_size, input)),
+                .all(|condition| condition.evaluate(origin, state, world_size, input)),
             Condition::Or(conditions) => conditions
                 .iter()
-                .any(|condition| condition.evaluate(origin, tags, world_size, input)),
+                .any(|condition| condition.evaluate(origin, state, world_size, input)),
             Condition::Condition(condition) => match condition {
                 ConditionType::Random(chance) => random::<f64>() <= *chance,
                 ConditionType::Input(scancode) => input.pressed(ScanCode(*scancode)),
                 ConditionType::Is(pos, tag, value) => {
-                    tags.get_tag_at(tag, origin+*pos) == *value
+                    state.get_tag_at(tag, origin + *pos) == *value
                 }
                 ConditionType::Eq((pos1, pos2), tag) => {
-                    tags.get_tag_at(tag, origin+*pos1) == tags.get_tag_at(tag, origin+*pos2)
+                    state.get_tag_at(tag, origin + *pos1) == state.get_tag_at(tag, origin + *pos2)
                 }
                 ConditionType::Lt((pos1, pos2), tag) => {
-                    tags.get_tag_at(tag, origin+*pos1) < tags.get_tag_at(tag, origin+*pos2)
+                    state.get_tag_at(tag, origin + *pos1) < state.get_tag_at(tag, origin + *pos2)
                 }
                 ConditionType::Lte((pos1, pos2), tag) => {
-                    tags.get_tag_at(tag, origin+*pos1) <= tags.get_tag_at(tag, origin+*pos2)
+                    state.get_tag_at(tag, origin + *pos1) <= state.get_tag_at(tag, origin + *pos2)
                 }
                 ConditionType::Gt((pos1, pos2), tag) => {
-                    tags.get_tag_at(tag, origin+*pos1) > tags.get_tag_at(tag, origin+*pos2)
+                    state.get_tag_at(tag, origin + *pos1) > state.get_tag_at(tag, origin + *pos2)
                 }
                 ConditionType::Gte((pos1, pos2), tag) => {
-                    tags.get_tag_at(tag, origin+*pos1) >= tags.get_tag_at(tag, origin+*pos2)
+                    state.get_tag_at(tag, origin + *pos1) >= state.get_tag_at(tag, origin + *pos2)
                 }
             },
         }
     }
-    pub fn from_value(value: &Value) -> Option<Self> {
+    pub fn from_value(value: &Value, tags: &Tags, elements: &Elements) -> Option<Self> {
         let value = value.as_array()?;
 
         let condition_type = value[0].as_str()?;
@@ -217,40 +222,40 @@ impl Condition {
                 value[1]
                     .as_array()?
                     .into_iter()
-                    .filter_map(|condition| Condition::from_value(condition))
+                    .filter_map(|condition| Condition::from_value(condition, tags, elements))
                     .collect(),
             )),
             "Or" => Some(Condition::Or(
                 value[1]
                     .as_array()?
                     .into_iter()
-                    .filter_map(|condition| Condition::from_value(condition))
+                    .filter_map(|condition| Condition::from_value(condition, tags, elements))
                     .collect(),
             )),
             "Eq" => Some(Condition::Condition(ConditionType::Eq(
                 (value_as_ivec(&value[1])?, value_as_ivec(&value[2])?),
-                value[3].as_str()?.to_string(),
+                tags.get_index(value[3].as_str()?)?,
             ))),
             "Lt" => Some(Condition::Condition(ConditionType::Lt(
                 (value_as_ivec(&value[1])?, value_as_ivec(&value[2])?),
-                value[3].as_str()?.to_string(),
+                tags.get_index(value[3].as_str()?)?,
             ))),
             "Lte" => Some(Condition::Condition(ConditionType::Lte(
                 (value_as_ivec(&value[1])?, value_as_ivec(&value[2])?),
-                value[3].as_str()?.to_string(),
+                tags.get_index(value[3].as_str()?)?,
             ))),
             "Gt" => Some(Condition::Condition(ConditionType::Gt(
                 (value_as_ivec(&value[1])?, value_as_ivec(&value[2])?),
-                value[3].as_str()?.to_string(),
+                tags.get_index(value[3].as_str()?)?,
             ))),
             "Gte" => Some(Condition::Condition(ConditionType::Gte(
                 (value_as_ivec(&value[1])?, value_as_ivec(&value[2])?),
-                value[3].as_str()?.to_string(),
+                tags.get_index(value[3].as_str()?)?,
             ))),
             "Is" => Some(Condition::Condition(ConditionType::Is(
                 value_as_ivec(&value[1])?,
-                value[2].as_str()?.to_string(),
-                TagValue::deserialize(&value[3]).unwrap_or(TagValue::None),
+                tags.get_index(value[2].as_str()?)?,
+                TagValue::from_value(&value[3], elements),
             ))),
             "Input" => Some(Condition::Condition(ConditionType::Input(
                 value[1].as_u64()? as u32,
@@ -271,49 +276,57 @@ fn value_as_ivec(value: &Value) -> Option<IVec2> {
 #[derive(Clone, Debug)]
 pub enum RuleOutcome {
     Clone(IVec2),
-    ChangeTags(Vec<(String, Math)>),
-    SetTags(Vec<(String, TagValue)>),
+    ChangeTags(Vec<(usize, Math)>),
+    SetTags(Vec<(usize, TagValue)>),
     SetElement(Math),
 }
 impl RuleOutcome {
-    pub fn from_value(value: &Value) -> Option<Vec<(IVec2, Self)>> {
+    pub fn from_value(
+        value: &Value,
+        tags: &Tags,
+        elements: &Elements,
+    ) -> Option<Vec<(IVec2, Self)>> {
         let outcomes = value.as_array()?;
 
         Some(
             outcomes
                 .into_iter()
                 .filter_map(|outcome| {
-                    let elements = outcome.as_array()?;
-                    let target = value_as_ivec(&elements[0])?;
+                    let outcome = outcome.as_array()?;
+                    let target = value_as_ivec(&outcome[0])?;
 
-                    let outcome = match elements[1].as_str()? {
-                        "Clone" => Some(Self::Clone(value_as_ivec(&elements[2])?)),
+                    let outcome = match outcome[1].as_str()? {
+                        "Clone" => Some(Self::Clone(value_as_ivec(&outcome[2])?)),
                         "ChangeTags" => Some(Self::ChangeTags(
-                            elements[2]
+                            outcome[2]
                                 .as_array()?
                                 .into_iter()
                                 .filter_map(|change| {
                                     let arr = change.as_array()?;
-                                    let tag = arr[0].as_str()?.to_string();
-                                    let new_value = Math::from_value(&arr[1])?;
+                                    let tag = tags.get_index(arr[0].as_str()?)?;
+                                    let new_value = Math::from_value(&arr[1], tags, elements)?;
 
                                     Some((tag, new_value))
                                 })
                                 .collect(),
                         )),
                         "SetTags" => Some(Self::SetTags(
-                            elements[2]
+                            outcome[2]
                                 .as_array()?
                                 .into_iter()
                                 .filter_map(|change| {
                                     let arr = change.as_array()?;
-                                    let tag = arr[0].as_str()?.to_string();
-                                    let new_value = TagValue::deserialize(&arr[1]).ok()?;
+                                    let tag = tags.get_index(arr[0].as_str()?)?;
+                                    let new_value = TagValue::from_value(&arr[1], elements);
                                     Some((tag, new_value))
                                 })
                                 .collect(),
                         )),
-                        "SetElement" => Some(Self::SetElement(Math::from_value(&elements[2])?)),
+                        "SetElement" => Some(Self::SetElement(Math::from_value(
+                            &outcome[2],
+                            tags,
+                            elements,
+                        )?)),
                         _ => None,
                     };
 
@@ -324,67 +337,62 @@ impl RuleOutcome {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug)]
 pub enum Math {
     Minus(Box<Math>, Box<Math>),
     Plus(Box<Math>, Box<Math>),
     Div(Box<Math>, Box<Math>),
     Mul(Box<Math>, Box<Math>),
-    Tag(IVec2, String),
+    Tag(IVec2, usize),
     Value(TagValue),
 }
 impl Math {
-    pub fn evaluate(
-        &self,
-        pos: IVec2,
-        tags: &Tags,
-        world_size: i32,
-    ) -> TagValue {
+    pub fn evaluate(&self, pos: IVec2, state: &SimualtionState, world_size: i32) -> TagValue {
         match self {
             Math::Minus(a, b) => {
-                a.evaluate(pos, tags, world_size) - b.evaluate(pos, tags, world_size)
+                a.evaluate(pos, state, world_size) - b.evaluate(pos, state, world_size)
             }
             Math::Plus(a, b) => {
-                a.evaluate(pos, tags, world_size) + b.evaluate(pos, tags, world_size)
+                a.evaluate(pos, state, world_size) + b.evaluate(pos, state, world_size)
             }
             Math::Div(a, b) => {
-                a.evaluate(pos, tags, world_size) / b.evaluate(pos, tags, world_size)
+                a.evaluate(pos, state, world_size) / b.evaluate(pos, state, world_size)
             }
             Math::Mul(a, b) => {
-                a.evaluate(pos, tags, world_size) * b.evaluate(pos, tags, world_size)
+                a.evaluate(pos, state, world_size) * b.evaluate(pos, state, world_size)
             }
-            Math::Tag(rel_pos, tag) => tags.get_tag_at(tag, pos+*rel_pos),
+            Math::Tag(rel_pos, tag) => state.get_tag_at(tag, pos + *rel_pos),
             Math::Value(value) => *value,
         }
     }
-    pub fn from_value(value: &Value) -> Option<Self> {
-        let elements = value.as_array().cloned().unwrap_or(vec![value.clone()]);
+    pub fn from_value(value: &Value, tags: &Tags, elements: &Elements) -> Option<Self> {
+        let sections = value.as_array().cloned().unwrap_or(vec![value.clone()]);
 
-        if elements.len() == 1 {
-            return Some(Math::Value(TagValue::deserialize(&elements[0]).ok()?));
+        if sections.len() == 1 {
+            return Some(Math::Value(TagValue::from_value(&sections[0], elements)));
         }
-        if elements.len() == 2 && elements[1].is_string() {
+        if sections.len() == 2 && sections[1].is_string() {
             return Some(Math::Tag(
-                value_as_ivec(&elements[0])?,
-                elements[1].as_str()?.to_string(),
+                value_as_ivec(&sections[0])?,
+                tags.get_index(sections[1].as_str()?)?,
             ));
         }
-        match elements[1].as_str()? {
+        match sections[1].as_str()? {
             "+" => Some(Math::Plus(
-                Box::new(Math::from_value(&elements[0])?),
-                Box::new(Math::from_value(&elements[2])?),
+                Box::new(Math::from_value(&sections[0], tags, elements)?),
+                Box::new(Math::from_value(&sections[2], tags, elements)?),
             )),
             "-" => Some(Math::Minus(
-                Box::new(Math::from_value(&elements[0])?),
-                Box::new(Math::from_value(&elements[2])?),
+                Box::new(Math::from_value(&sections[0], tags, elements)?),
+                Box::new(Math::from_value(&sections[2], tags, elements)?),
             )),
             "*" => Some(Math::Mul(
-                Box::new(Math::from_value(&elements[0])?),
-                Box::new(Math::from_value(&elements[2])?),
+                Box::new(Math::from_value(&sections[0], tags, elements)?),
+                Box::new(Math::from_value(&sections[2], tags, elements)?),
             )),
             "/" => Some(Math::Div(
-                Box::new(Math::from_value(&elements[0])?),
-                Box::new(Math::from_value(&elements[2])?),
+                Box::new(Math::from_value(&sections[0], tags, elements)?),
+                Box::new(Math::from_value(&sections[2], tags, elements)?),
             )),
             _ => None,
         }
@@ -394,84 +402,100 @@ impl Math {
 #[derive(Clone)]
 pub enum Rule {
     Single(SingleRule),
-    Compound{
+    Compound {
         name: String,
         enabled: bool,
-        rules: Vec<SingleRule>
-    }
+        rules: Vec<SingleRule>,
+    },
 }
 impl Rule {
     pub fn execute(
         &self,
-        tiles: &Tags,
+        tiles: &SimualtionState,
         world_size: i32,
         elements: &Elements,
         frame: u128,
         input: &Res<Input<ScanCode>>,
-    ) -> Vec<Vec<Vec<(IVec2, HashMap<String, TagValue>)>>> {
-        (0..world_size*world_size).into_par_iter().map(|index| {
-            let x = index%world_size;
-            let y = index/world_size;
+    ) -> Vec<Vec<Vec<(IVec2, Vec<TagValue>)>>> {
+        (0..world_size * world_size)
+            .into_par_iter()
+            .map(|index| {
+                let x = index % world_size;
+                let y = index / world_size;
 
-            self.execute_at(IVec2::new(x, y), tiles, world_size, elements, frame, input)
-        }).collect()
+                self.execute_at(IVec2::new(x, y), tiles, world_size, elements, frame, input)
+            })
+            .collect()
     }
 
     fn execute_at(
         &self,
         pos: IVec2,
-        tags: &Tags,
+        state: &SimualtionState,
         world_size: i32,
         elements: &Elements,
         frame: u128,
         input: &Res<Input<ScanCode>>,
-    ) -> Vec<Vec<(IVec2, HashMap<String, TagValue>)>> {
+    ) -> Vec<Vec<(IVec2, Vec<TagValue>)>> {
         let mut actions = match self {
-            Rule::Single(rule) => rule.get_actions(pos, tags, world_size, elements, frame, input),
-            Rule::Compound{enabled, rules, ..} => {
+            Rule::Single(rule) => rule.get_actions(pos, state, world_size, elements, frame, input),
+            Rule::Compound { enabled, rules, .. } => {
                 if *enabled {
-                    rules.iter().flat_map(|rule| rule.get_actions(pos, tags, world_size, elements, frame, input)).collect()
+                    rules
+                        .iter()
+                        .flat_map(|rule| {
+                            rule.get_actions(pos, state, world_size, elements, frame, input)
+                        })
+                        .collect()
                 } else {
                     Vec::new()
                 }
-            },
+            }
         };
         actions.par_sort_by(|a, b| a.priority.total_cmp(&b.priority).reverse());
-        actions.into_iter().map(|action| {
-            action.new_states.into_iter().map(|(pos, action_type)| {
-                (pos, match action_type {
-                    ActionDataType::Clone(from) => {
-                        tags.get_tags_at(from)
-                    },
-                    ActionDataType::ReplaceTags(new_tags) => {
-                        let mut tags = tags.get_tags_at(pos);
-                        for (name, value) in new_tags {
-                            if let Some(tag) = tags.get_mut(&name) {
-                                *tag = value;
-                            }
-                        }
-                        tags
-                    },
-                    ActionDataType::ReplaceAllTags(new_tags) => {
-                        new_tags
-                    },
-                })
-            }).collect()
-        }).collect()
+        actions
+            .into_iter()
+            .map(|action| {
+                action
+                    .new_states
+                    .into_iter()
+                    .map(|(pos, action_type)| {
+                        (
+                            pos,
+                            match action_type {
+                                ActionDataType::Clone(from) => state.get_tags_at(from),
+                                ActionDataType::ReplaceTags(new_tags) => {
+                                    let mut state = state.get_tags_at(pos);
+                                    for (name, value) in new_tags {
+                                        if let Some(tag) = state.get_mut(name) {
+                                            *tag = value;
+                                        }
+                                    }
+                                    state
+                                }
+                                ActionDataType::ReplaceAllTags(new_tags) => new_tags,
+                            },
+                        )
+                    })
+                    .collect()
+            })
+            .collect()
     }
     fn set_enabled(&mut self, value: bool) {
         match self {
             Rule::Single(rule) => rule.enabled = value,
             Rule::Compound { enabled, rules, .. } => {
                 *enabled = value;
-                rules.iter_mut().for_each(|child| child.set_parent_enabled(value));
-            },
+                rules
+                    .iter_mut()
+                    .for_each(|child| child.set_parent_enabled(value));
+            }
         }
     }
     fn get_enabled(&self) -> bool {
         match self {
             Rule::Single(rule) => rule.enabled,
-            Rule::Compound { enabled, .. } => *enabled
+            Rule::Compound { enabled, .. } => *enabled,
         }
     }
     pub fn get_name(&self) -> &str {
@@ -488,12 +512,16 @@ pub struct SingleRule {
     parent_enabled: bool,
     condition: Condition,
     rule_outcome: Vec<(IVec2, RuleOutcome)>,
-    priority: Math
+    priority: Math,
 }
 
 impl SingleRule {
-
-    pub fn new(name: impl Into<String>, condition: Condition, rule_outcome: Vec<(IVec2, RuleOutcome)>, priority: Math) -> Self {
+    pub fn new(
+        name: impl Into<String>,
+        condition: Condition,
+        rule_outcome: Vec<(IVec2, RuleOutcome)>,
+        priority: Math,
+    ) -> Self {
         Self {
             name: name.into(),
             enabled: true,
@@ -527,13 +555,13 @@ impl SingleRule {
     fn get_actions(
         &self,
         pos: IVec2,
-        tags: &Tags,
+        state: &SimualtionState,
         world_size: i32,
         elements: &Elements,
         frame: u128,
         input: &Res<Input<ScanCode>>,
     ) -> Vec<Action> {
-        if !self.condition.evaluate(pos, tags, world_size, input) || !self.get_enabled() {
+        if !self.condition.evaluate(pos, state, world_size, input) || !self.get_enabled() {
             return Vec::new();
         }
 
@@ -547,35 +575,29 @@ impl SingleRule {
                             RuleOutcome::Clone(from) => {
                                 ActionDataType::Clone(pos.wrapping_add(*from))
                             }
-                            RuleOutcome::ChangeTags(new_tags) => {
-                                ActionDataType::ReplaceTags(
-                                    new_tags.iter()
-                                        .map(|(tag, math)| {
-                                            (
-                                                tag.to_string(),
-                                                math.evaluate(pos, tags, world_size),
-                                            )
-                                        })
-                                        .collect(),
-                                )
-                            }
-                            RuleOutcome::SetTags(tags) => ActionDataType::ReplaceTags(
-                                tags.iter().cloned().collect(),
+                            RuleOutcome::ChangeTags(new_tags) => ActionDataType::ReplaceTags(
+                                new_tags
+                                    .iter()
+                                    .map(|(tag, math)| {
+                                        (*tag, math.evaluate(pos, state, world_size))
+                                    })
+                                    .collect(),
                             ),
-                            RuleOutcome::SetElement(el) => {
-                                ActionDataType::ReplaceAllTags(
-                                    elements
-                                        .get_el(el.evaluate(pos, tags, world_size))
-                                        .iter()
-                                        .cloned()
-                                        .collect(),
-                                )
+                            RuleOutcome::SetTags(tags) => {
+                                ActionDataType::ReplaceTags(tags.iter().cloned().collect())
                             }
+                            RuleOutcome::SetElement(el) => ActionDataType::ReplaceAllTags(
+                                elements
+                                    .get_el(el.evaluate(pos, state, world_size))
+                                    .iter()
+                                    .cloned()
+                                    .collect(),
+                            ),
                         },
                     )
                 })
                 .collect(),
-            self.priority.evaluate(pos, tags, world_size).as_float(),
+            self.priority.evaluate(pos, state, world_size).as_float(),
         )]
     }
 }
