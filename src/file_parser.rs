@@ -3,7 +3,7 @@ use std::{fs, path::Path};
 
 use crate::{
     rules::{Condition, Math, RuleOutcome},
-    tags::{TagValue, Tags},
+    tags::{TagType, Tags},
     world::Elements,
     Rule, SingleRule,
 };
@@ -21,10 +21,10 @@ pub fn load_tags(path: &Path) -> Option<Tags> {
                 for (name, space_type) in tags_list {
                     if let Value::String(str) = space_type {
                         match str.to_lowercase().as_str() {
-                            "float" => tags.push((name, TagValue::Float(0.))),
-                            "integer" => tags.push((name, TagValue::Integer(0))),
-                            "boolean" => tags.push((name, TagValue::Boolean(false))),
-                            "element" => tags.push((name, TagValue::Element(0))),
+                            "float" => tags.push((name, TagType::Float)),
+                            "integer" => tags.push((name, TagType::Integer)),
+                            "boolean" => tags.push((name, TagType::Boolean)),
+                            "element" => tags.push((name, TagType::Element)),
                             _ => {
                                 panic!("Invalid value type: {}, try one of the following:\nfloat\ninteger\nboolean\nelement", str)
                             }

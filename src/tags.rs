@@ -8,6 +8,14 @@ use std::{
 use crate::world::{pos_in_world, Element, Elements};
 
 #[derive(Debug, Copy, Clone)]
+pub enum TagType {
+    Integer,
+    Float,
+    Boolean,
+    Element
+}
+
+#[derive(Debug, Copy, Clone)]
 pub enum TagValue {
     None,
     Integer(i64),
@@ -40,17 +48,14 @@ impl TagValue {
             TagValue::Element(el) => elements.get(*el).name.to_string(),
         }
     }
-    pub fn matching_varaint(&self, other: &TagValue) -> bool {
-        if let TagValue::None = other {
-            return true;
-        }
-        match (self, other) {
-            (TagValue::None, TagValue::None) => true,
-            (TagValue::Integer(_), TagValue::Integer(_)) => true,
-            (TagValue::Float(_), TagValue::Float(_)) => true,
-            (TagValue::Boolean(_), TagValue::Boolean(_)) => true,
-            (TagValue::Element(_), TagValue::Element(_)) => true,
-            _ => false,
+    pub fn is_of_type(&self, tagtype: &TagType ) -> bool {
+        match (self, tagtype) {
+            (TagValue::None, _) => true,
+            (TagValue::Integer(_), TagType::Integer) => true,
+            (TagValue::Float(_), TagType::Float) => true,
+            (TagValue::Boolean(_), TagType::Boolean) => true,
+            (TagValue::Element(_), TagType::Element) => true,
+            _ => false
         }
     }
     pub fn from_value(value: &Value, elements: &Elements) -> Self {
@@ -219,10 +224,10 @@ const fn color_to_int(r: u8, g: u8, b: u8) -> i64 {
 #[derive(Clone)]
 pub struct Tags {
     tag_mapping: HashMap<String, usize>,
-    tag_types: Vec<TagValue>,
+    tag_types: Vec<TagType>,
 }
 impl Tags {
-    pub fn new(tags: Vec<(impl ToString, TagValue)>) -> Self {
+    pub fn new(tags: Vec<(impl ToString, TagType)>) -> Self {
         Self {
             tag_mapping: tags
                 .iter()
@@ -247,7 +252,7 @@ impl Tags {
 }
 
 pub struct TagSpace {
-    value_type: TagValue,
+    tag_type: TagType,
     array: Vec<TagValue>,
     world_size: usize,
 }
@@ -255,9 +260,9 @@ impl TagSpace {
     fn get_index(&self, pos: IVec2) -> usize {
         (pos.y * self.world_size as i32 + pos.x) as usize
     }
-    pub fn new_with_value(value: TagValue, value_type: TagValue, world_size: usize) -> Self {
+    pub fn new_with_value(value: TagValue, tag_type: TagType, world_size: usize) -> Self {
         Self {
-            value_type: value_type,
+            tag_type,
             array: vec![value; (world_size * world_size) as usize],
             world_size,
         }
@@ -278,10 +283,10 @@ impl TagSpace {
         self.array[index as usize]
     }
     pub fn set_tag(&mut self, pos: IVec2, value: TagValue) {
-        if !self.value_type.matching_varaint(&value) {
+        if !value.is_of_type(&self.tag_type) {
             eprintln!(
                 "Trying to set a tag of type {:?} to an invalid variant {:?}",
-                self.value_type, value
+                self.tag_type, value
             );
             return;
         }
