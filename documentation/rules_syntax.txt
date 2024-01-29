@@ -1,15 +1,35 @@
-File should start with an array [].
-Array should contain all rules and compound rules.
-Compound rule is in array [] inside the intitial array.
-First element of a compound rule array should be a string conatining the name of the compound rule.
-Rules placed inside the secondary array will be a part of a single compound rule.
+File should start with an object {}.
+Object should contain all rules and compound rules.
+Compound rule is an object inside the intitial object.
+Compound rule should contain its children as properties.
+Single rule can be placed inside the initial object.
 
-Structure of a rule:
+Single rules name cannot be "condition", "rule_outcome" or "priority"
+
+Structure
 {
-    "name": String                          // Name of the rule in a string
-    "condition": Condition                  // Condition for the rule to execute
-    "rule_outcome": [Outcome]               // What happens once the condition is passed
-    "priority": Math                        // In which order should rules of this type be executed
+
+    // Single rule    
+    "name": {                                // Name of the rule
+        "condition": Condition               // Condition for the rule to execute
+        "rule_outcome": [Outcome]            // What happens once the condition is passed
+        "priority": Math                     // In which order should rules of this type be executed
+    },
+    // Compound rule
+    "name": {
+        // Single rule    
+        "name": {                            // Name of the rule
+            "condition": Condition           // Condition for the rule to execute
+            "rule_outcome": [Outcome]        // What happens once the condition is passed
+            "priority": Math                 // In which order should rules of this type be executed
+        },
+        // Single rule    
+        "name": {                            // Name of the rule
+            "condition": Condition           // Condition for the rule to execute
+            "rule_outcome": [Outcome]        // What happens once the condition is passed
+            "priority": Math                 // In which order should rules of this type be executed
+        },
+    }
 }
 
 Condtions:
@@ -46,3 +66,84 @@ floating-point number ex. 0.1, 55.0         // returns Float
 true / false                                // returns Boolean
 "element"                                   // returns Element !! Does not allow arithmatic at all
 "#hex_color"                                // returns Integer (containing color)
+
+Example:
+{
+    "gravity": {
+        "gravity_down": {
+            "condition": ["Lt", [0, 1], [0, 0], "mass"],
+            "rule_outcome": [
+                [
+                    [0, 1],
+                    "Clone",
+                    [0, 0]
+                ],
+                [
+                    [0, 0],
+                    "Clone",
+                    [0, 1]
+                ]
+            ], 
+            "priority": [[[0, 0], "mass"], "-", [[0, 1], "mass"]]
+        },
+        "gravity_diagonal_right": {
+            "condition": ["And", [
+                ["Lt", [1, 0], [0, 0], "mass"],
+                ["Lte", [1, 1], [1, 0], "mass"]
+            ]],
+            "rule_outcome": [
+                [
+                    [1, 1],
+                    "Clone",
+                    [0, 0]
+                ],
+                [
+                    [0, 0],
+                    "Clone",
+                    [1, 1]
+                ]
+            ],
+            "priority": [[[[0, 0], "mass"], "-", [[1, 1], "mass"]], "/", [10]]
+        },
+        "gravity_diagonal_left": {
+            "condition": ["And", [
+                ["Lt", [-1, 0], [0, 0], "mass"],
+                ["Lte", [-1, 1], [-1, 0], "mass"]
+            ]],
+            "rule_outcome": [
+                [
+                    [-1, 1],
+                    "Clone",
+                    [0, 0]
+                ],
+                [
+                    [0, 0],
+                    "Clone",
+                    [-1, 1]
+                ]
+            ],
+            "priority": [[[[0, 0], "mass"], "-", [[-1, 1], "mass"]], "/", [10]]
+        }
+    },
+    "ignition": {
+        "condition": ["And", [
+            ["Is", [0, 0], "flammable", true],
+            ["Or", [
+                ["Is", [1, 0], "burning", true],
+                ["Is", [0, 1], "burning", true],
+                ["Is", [-1, 0], "burning", true],
+                ["Is", [0, -1], "burning", true]
+            ]]
+        ]],
+        "rule_outcome": [
+            [
+                [0, 0],
+                "ChangeTags",
+                [
+                    ["burning", true]
+                ]
+            ]
+        ],
+        "priority": [1]
+    }
+}

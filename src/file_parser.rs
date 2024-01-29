@@ -55,12 +55,8 @@ pub fn load_elements(path: &Path, tags: &Tags) -> Option<Elements> {
     }
 }
 
-pub fn load_rule(rule: &Value, tags: &Tags, elements: &Elements) -> Option<SingleRule> {
+pub fn load_rule(name: &String, rule: &Value, tags: &Tags, elements: &Elements) -> Option<SingleRule> {
     let properties = rule.as_object()?;
-    let name = match properties.get("name") {
-        Some(value) => value.as_str().unwrap_or("no_name").to_string(),
-        None => "no_name".to_string(),
-    };
     let condition = Condition::from_value(properties.get("condition")?, tags, elements);
     let rule_outcome = RuleOutcome::from_value(properties.get("rule_outcome")?, tags, elements);
     let priority = Math::from_value(properties.get("priority")?, tags, elements);
@@ -97,26 +93,33 @@ pub fn load_rules(path: &Path, tags: &Tags, elements: &Elements) -> Option<Vec<R
         }?;
         match serde_json::from_str::<Value>(&file_content) {
             Ok(json) => {
-                let rules = json.as_array()?;
+                let rules = json.as_object()?;
 
                 Some(
                     rules
                         .into_iter()
-                        .filter_map(|rule| {
-                            if let Some(compound) = rule.as_array() {
-                                // Compound rule
+                        .filter_map(|(rule_name, value)| {
+                            let rule_info = value.as_object()?;
+
+                            if rule_info.keys().all(|name| {// Test if rule has a structure of a single rule
+                                match name.as_str() {
+                                    "condition" => true,
+                                    "rule_outcome" => true,
+                                    "priority" => true,
+                                    _ => false
+                                }
+                            }) {
+                                load_rule(rule_name, value, tags, elements)
+                                .and_then(|rule| Some(Rule::Single(rule)))
+                            } else {
                                 Some(Rule::Compound {
-                                    name: compound[0].as_str()?.to_string(),
+                                    name: rule_name.to_string(),
                                     enabled: true,
-                                    rules: compound[1..]
+                                    rules: rule_info
                                         .into_iter()
-                                        .filter_map(|rule| load_rule(rule, tags, elements))
+                                        .filter_map(|rule| load_rule(rule.0, rule.1, tags, elements))
                                         .collect(),
                                 })
-                            } else {
-                                // Single rule
-                                load_rule(rule, tags, elements)
-                                    .and_then(|rule| Some(Rule::Single(rule)))
                             }
                         })
                         .collect(),

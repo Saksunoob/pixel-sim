@@ -1,20 +1,38 @@
-File should start with an array [].
-Array should contain all elements.
+File should start with an object {} containg the elemets.
+All tags not defined in file will be set to None.
 
-Structure of an element
+Structure of elements
 
 {
-    "name": String,             // String containing the name of the element, used to identify it in rules
-    "tags": {                   // Object containing all default tags for the element
-        "tagname": Value        // Specify a Value for "tagname"
-    }
+    "name": {
+        "tagname": Value,
+        "tagname": Value,
+    },
+    "name": {
+        "tagname": Value,
+        "tagname": Value,
+    },         
 }
 
-Value:
+Value can be any of the following:
 null                                        // returns None
-""                                          // returns Empty
 whole number ex. 23, -45                    // returns Integer
 floating-point number ex. 0.1, 55.0         // returns Float
 true / false                                // returns Boolean
 "element"                                   // returns Element
 "#hex_color"                                // returns Integer (containing color)
+
+Example:
+{
+    "air": {
+        "color": "#000000",
+        "mass": 0.1
+    },
+    "flame": {
+        "color": "#FFFF00",
+        "mass": 0.05,
+        "burning": true,
+        "burn_time": 10,
+        "on_burn_out": "air"
+    }
+}

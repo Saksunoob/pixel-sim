@@ -1,8 +1,6 @@
-[
-    [
-        "gravity",
-        {
-            "name": "gravity_down",
+{
+    "gravity": {
+        "gravity_down": {
             "condition": ["Lt", [0, 1], [0, 0], "mass"],
             "rule_outcome": [
                 [
@@ -18,8 +16,7 @@
             ], 
             "priority": [[[0, 0], "mass"], "-", [[0, 1], "mass"]]
         },
-        {
-            "name": "gravity_diagonal_right",
+        "gravity_diagonal_right": {
             "condition": ["And", [
                 ["Lt", [1, 0], [0, 0], "mass"],
                 ["Lte", [1, 1], [1, 0], "mass"]
@@ -38,15 +35,14 @@
             ],
             "priority": [[[[0, 0], "mass"], "-", [[1, 1], "mass"]], "/", [10]]
         },
-        {
-            "name": "gravity_diagonal_left",
+        "gravity_diagonal_left": {
             "condition": ["And", [
                 ["Lt", [-1, 0], [0, 0], "mass"],
                 ["Lte", [-1, 1], [-1, 0], "mass"]
             ]],
             "rule_outcome": [
                 [
-                    [-1, -1],
+                    [-1, 1],
                     "Clone",
                     [0, 0]
                 ],
@@ -58,11 +54,9 @@
             ],
             "priority": [[[[0, 0], "mass"], "-", [[-1, 1], "mass"]], "/", [10]]
         }
-    ],
-    [
-        "rain",
-        {
-            "name": "rain_paper",
+    },
+    "rain": {
+        "rain_paper": {
             "condition": ["And", [
                 ["Is", [0, -1], "mass", null],
                 ["Random", 0.2],
@@ -77,8 +71,7 @@
             ],
             "priority": [0.1]
         },
-        {
-            "name": "rain_spark",
+        "rain_spark": {
             "condition": ["And", [
                 ["Is", [0, -1], "mass", null],
                 ["Random", 0.0002],
@@ -93,9 +86,8 @@
             ],
             "priority": [0.1]
         }
-    ], 
-    {
-        "name": "ignition",
+    },
+    "ignition": {
         "condition": ["And", [
             ["Is", [0, 0], "flammable", true],
             ["Or", [
@@ -116,20 +108,18 @@
         ],
         "priority": [1]
     },
-    {
-        "name": "burning",
+    "burning": {
         "condition": ["Is", [0, 0], "burning", true],
         "rule_outcome": [
             [[0, 0], "ChangeTags", [["burn_time", [[[0, 0], "burn_time"], "-", 1]]]]
         ],
         "priority": [0.1]
     },
-    {
-        "name": "burn_out",
+    "burn_out": {
         "condition": ["Is", [0, 0], "burn_time", 0],
         "rule_outcome": [
             [[0, 0], "SetElement", [[0, 0], "on_burn_out"]]
         ],
         "priority": [1]
     }
-]
+}

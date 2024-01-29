@@ -1,0 +1,17 @@
+File should start with an object.
+Object has properties with a name of the property and value type as the value.
+
+Structure:
+{
+    "name": "type",
+    "name": "type"
+}
+
+"type" can be any of the following "float", "integer", "boolean" or "element".
+"name" can be any string
+
+Example:
+{
+    "mass": "float",
+    "flammable": "boolean"
+}
