@@ -26,9 +26,9 @@ mod ui;
 mod world;
 
 fn main() {
-    let tags = load_tags(Path::new("src/tags.json")).unwrap();
-    let elements = load_elements(Path::new("src/elements.json"), &tags).unwrap();
-    let rules = load_rules(Path::new("src/rules.json"), &tags, &elements).unwrap();
+    let tags = load_tags(Path::new("simulation_data/tags.json")).unwrap();
+    let elements = load_elements(Path::new("simulation_data/elements.json"), &tags).unwrap();
+    let rules = load_rules(Path::new("simulation_data/rules.json"), &tags, &elements).unwrap();
 
     let ruleset = Ruleset::new(rules);
 
