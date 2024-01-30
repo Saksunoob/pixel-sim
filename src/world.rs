@@ -1,21 +1,8 @@
 use crate::rules::*;
 use crate::tags::*;
 use bevy::prelude::*;
-use bevy::{
-    app::Plugin,
-    asset::{AssetServer, Handle},
-    ecs::system::{Commands, Res, Resource},
-    math::Vec2,
-    render::{
-        color::Color,
-        render_resource::{Extent3d, TextureDimension, TextureFormat},
-        texture::Image,
-    },
-    sprite::{Sprite, SpriteBundle},
-    transform::components::Transform,
-};
+use bevy::render::render_resource::*;
 use rayon::prelude::*;
-use serde_json::Value;
 use std::collections::HashMap;
 
 pub struct WorldPlugin(pub usize, pub Tags, pub Elements, pub Ruleset);
@@ -189,39 +176,6 @@ impl Elements {
             elements,
             default: 0,
         }
-    }
-    pub fn from_value(value: &Value, tags: &Tags) -> Option<Self> {
-        let object = value.as_object()?;
-
-        let mapper = Elements {
-            element_mapping: object
-                .iter()
-                .enumerate()
-                .map(|(index, (name, _))| (name.to_string(), index))
-                .collect(),
-            elements: Vec::new(),
-            default: 0,
-        };
-
-        let elements = object
-            .into_iter()
-            .filter_map(|(name, element_tags)| {
-                let def_element_tags = element_tags.as_object()?;
-                let mut element_tags: Vec<_> = tags.iter().map(|_| TagValue::None).collect();
-
-                def_element_tags.into_iter().for_each(|(name, value)| {
-                    element_tags[tags.get_index(name).unwrap()] =
-                        TagValue::from_value(value, &mapper);
-                });
-
-                Some(Element {
-                    name: name.to_string(),
-                    tags: element_tags,
-                })
-            })
-            .collect();
-
-        Some(Self::new(elements))
     }
     pub fn get_index(&self, name: impl ToString) -> Option<usize> {
         self.element_mapping.get(&name.to_string()).copied()

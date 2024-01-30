@@ -84,7 +84,7 @@
                     "spark"
                 ]
             ],
-            "priority": [0.1]
+            "priority": 0.1
         }
     },
     "ignition": {
@@ -106,20 +106,20 @@
                 ]
             ]
         ],
-        "priority": [1]
+        "priority": 1
     },
     "burning": {
         "condition": ["Is", [0, 0], "burning", true],
         "rule_outcome": [
             [[0, 0], "ChangeTags", [["burn_time", [[[0, 0], "burn_time"], "-", 1]]]]
         ],
-        "priority": [0.1]
+        "priority": 0.1
     },
     "burn_out": {
         "condition": ["Is", [0, 0], "burn_time", 0],
         "rule_outcome": [
             [[0, 0], "SetElement", [[0, 0], "on_burn_out"]]
         ],
-        "priority": [1]
+        "priority": 1
     }
 }

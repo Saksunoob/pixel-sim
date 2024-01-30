@@ -10,8 +10,7 @@ use rayon::prelude::*;
 use serde_json::Value;
 
 use crate::{
-    tags::{SimualtionState, TagValue, Tags},
-    world::Elements,
+    file_parser::ValueParseError, tags::{SimualtionState, TagValue, Tags}, world::Elements
 };
 
 #[derive(Clone)]
@@ -212,65 +211,106 @@ impl Condition {
             },
         }
     }
-    pub fn from_value(value: &Value, tags: &Tags, elements: &Elements) -> Option<Self> {
-        let value = value.as_array()?;
+    pub fn from_value(value: &Value, tags: &Tags, elements: &Elements) -> Result<Self, ValueParseError> {
+        let value = value.as_array().ok_or(ValueParseError::new("Condition should be an array"))?;
 
-        let condition_type = value[0].as_str()?;
+        let condition_type = value[0].as_str().ok_or(ValueParseError::new("First item of a condition array should be a String"))?;
 
         match condition_type {
-            "And" => Some(Condition::And(
-                value[1]
-                    .as_array()?
-                    .into_iter()
-                    .filter_map(|condition| Condition::from_value(condition, tags, elements))
-                    .collect(),
-            )),
-            "Or" => Some(Condition::Or(
-                value[1]
-                    .as_array()?
-                    .into_iter()
-                    .filter_map(|condition| Condition::from_value(condition, tags, elements))
-                    .collect(),
-            )),
-            "Eq" => Some(Condition::Condition(ConditionType::Eq(
-                (value_as_ivec(&value[1])?, value_as_ivec(&value[2])?),
-                tags.get_index(value[3].as_str()?)?,
-            ))),
-            "Lt" => Some(Condition::Condition(ConditionType::Lt(
-                (value_as_ivec(&value[1])?, value_as_ivec(&value[2])?),
-                tags.get_index(value[3].as_str()?)?,
-            ))),
-            "Lte" => Some(Condition::Condition(ConditionType::Lte(
-                (value_as_ivec(&value[1])?, value_as_ivec(&value[2])?),
-                tags.get_index(value[3].as_str()?)?,
-            ))),
-            "Gt" => Some(Condition::Condition(ConditionType::Gt(
-                (value_as_ivec(&value[1])?, value_as_ivec(&value[2])?),
-                tags.get_index(value[3].as_str()?)?,
-            ))),
-            "Gte" => Some(Condition::Condition(ConditionType::Gte(
-                (value_as_ivec(&value[1])?, value_as_ivec(&value[2])?),
-                tags.get_index(value[3].as_str()?)?,
-            ))),
-            "Is" => Some(Condition::Condition(ConditionType::Is(
-                value_as_ivec(&value[1])?,
-                tags.get_index(value[2].as_str()?)?,
-                TagValue::from_value(&value[3], elements),
-            ))),
-            "Input" => Some(Condition::Condition(ConditionType::Input(
-                value[1].as_u64()? as u32,
-            ))),
-            "Random" => Some(Condition::Condition(ConditionType::Random(
-                value[1].as_f64()?,
-            ))),
-            _ => None,
+            "And" => {
+                let sub_condition_array = value[1].as_array().ok_or(ValueParseError::new("Second element of And condition should be an Array"))?;
+                let mut sub_conditions = Vec::new();
+                for sub_condition in sub_condition_array {
+                    sub_conditions.push(Condition::from_value(sub_condition, tags, elements)?);
+                }
+                Ok(Condition::And(sub_conditions))
+            },
+            "Or" => {
+                let sub_condition_array = value[1].as_array().ok_or(ValueParseError::new("Second element of Or condition should be an Array"))?;
+                let mut sub_conditions = Vec::new();
+                for sub_condition in sub_condition_array {
+                    sub_conditions.push(Condition::from_value(sub_condition, tags, elements)?);
+                }
+                Ok(Condition::Or(sub_conditions))
+            },
+            "Eq" => {
+                let pos1 = value_as_ivec(&value[1])?;
+                let pos2 = value_as_ivec(&value[2])?;
+
+
+                let compare_str = value[3].as_str().ok_or(ValueParseError::new("Fourth item of Eq condition should be a String"))?;
+
+                let compare = tags.get_index(compare_str).ok_or(ValueParseError::new(format!("Eq comparison tag \"{compare_str}\" doesn't exist")))?;
+
+                Ok(Condition::Condition(ConditionType::Eq((pos1, pos2), compare)))
+            },
+            "Lt" => {
+                let pos1 = value_as_ivec(&value[1])?;
+                let pos2 = value_as_ivec(&value[2])?;
+
+                let compare_str = value[3].as_str().ok_or(ValueParseError::new("Fourth item of Lt condition should be a String"))?;
+
+                let compare = tags.get_index(compare_str).ok_or(ValueParseError::new(format!("Lt comparison tag \"{compare_str}\" doesn't exist")))?;
+
+                Ok(Condition::Condition(ConditionType::Lt((pos1, pos2), compare)))
+            },
+            "Lte" => {
+                let pos1 = value_as_ivec(&value[1])?;
+                let pos2 = value_as_ivec(&value[2])?;
+
+                let compare_str = value[3].as_str().ok_or(ValueParseError::new("Fourth item of Lte condition should be a String"))?;
+
+                let compare = tags.get_index(compare_str).ok_or(ValueParseError::new(format!("Lte comparison tag \"{compare_str}\" doesn't exist")))?;
+
+                Ok(Condition::Condition(ConditionType::Lte((pos1, pos2), compare)))
+            },
+            "Gt" => {
+                let pos1 = value_as_ivec(&value[1])?;
+                let pos2 = value_as_ivec(&value[2])?;
+
+                let compare_str = value[3].as_str().ok_or(ValueParseError::new("Fourth item of Gt condition should be a String"))?;
+
+                let compare = tags.get_index(compare_str).ok_or(ValueParseError::new(format!("Gt comparison tag \"{compare_str}\" doesn't exist")))?;
+
+                Ok(Condition::Condition(ConditionType::Gt((pos1, pos2), compare)))
+            },
+            "Gte" => {
+                let pos1 = value_as_ivec(&value[1])?;
+                let pos2 = value_as_ivec(&value[2])?;
+
+                let compare_str = value[3].as_str().ok_or(ValueParseError::new("Fourth item of Gte condition should be a String"))?;
+
+                let compare = tags.get_index(compare_str).ok_or(ValueParseError::new(format!("Gte comparison tag \"{compare_str}\" doesn't exist")))?;
+
+                Ok(Condition::Condition(ConditionType::Gte((pos1, pos2), compare)))
+            },
+            "Is" => {
+                let pos = value_as_ivec(&value[1])?;
+                let compare_str = value[2].as_str().ok_or(ValueParseError::new("Thrird item of Is condition should be a String"))?;
+                let compare = tags.get_index(compare_str).ok_or(ValueParseError::new(format!("Is comparison tag \"{compare_str}\" doesn't exist")))?;
+                let tag_value = TagValue::from_value(&value[3], elements);
+
+                Ok(Condition::Condition(ConditionType::Is(pos, compare, tag_value)))
+            },
+            "Input" => {
+                let scancode = value[1].as_u64().and_then(|code| code.try_into().ok()).ok_or(ValueParseError::new("Second element of Input should be i32 (-2147483648 - 2147483647)"))?;
+                Ok(Condition::Condition(ConditionType::Input(scancode)))
+            },
+            "Random" => {
+                let chance = value[1].as_f64().ok_or(ValueParseError::new("Second element of Random should be f64"))?;
+                Ok(Condition::Condition(ConditionType::Random(chance)))
+            },
+            _ => Err(ValueParseError::new(format!("\"{}\" isn't a valid condition type", condition_type))),
         }
     }
 }
 
-fn value_as_ivec(value: &Value) -> Option<IVec2> {
-    let arr = value.as_array()?;
-    Some(IVec2::new(arr[0].as_i64()? as i32, arr[1].as_i64()? as i32))
+fn value_as_ivec(value: &Value) -> Result<IVec2, ValueParseError> {
+    let arr = value.as_array().ok_or(ValueParseError::new("Position should be an array"))?;
+    if arr.len() != 2 {return Err(ValueParseError::new("Position array length should be 2"))}
+    let x: i32 = arr[0].as_i64().and_then(|num| num.try_into().ok()).ok_or(ValueParseError::new("Positions arguments should be i32 (-2147483648 - 2147483647)"))?;
+    let y: i32 = arr[1].as_i64().and_then(|num| num.try_into().ok()).ok_or(ValueParseError::new("Positions arguments should be i32 (-2147483648 - 2147483647)"))?;
+    Ok(IVec2::new(x, y))
 }
 
 #[derive(Clone, Debug)]
@@ -285,55 +325,64 @@ impl RuleOutcome {
         value: &Value,
         tags: &Tags,
         elements: &Elements,
-    ) -> Option<Vec<(IVec2, Self)>> {
-        let outcomes = value.as_array()?;
+    ) -> Result<Vec<(IVec2, Self)>, ValueParseError> {
+        let outcomes_array = value.as_array().ok_or(ValueParseError::new("Rule outcomes should be an array"))?;
 
-        Some(
-            outcomes
-                .into_iter()
-                .filter_map(|outcome| {
-                    let outcome = outcome.as_array()?;
-                    let target = value_as_ivec(&outcome[0])?;
+        let mut rule_outcomes = Vec::new();
 
-                    let outcome = match outcome[1].as_str()? {
-                        "Clone" => Some(Self::Clone(value_as_ivec(&outcome[2])?)),
-                        "ChangeTags" => Some(Self::ChangeTags(
-                            outcome[2]
-                                .as_array()?
-                                .into_iter()
-                                .filter_map(|change| {
-                                    let arr = change.as_array()?;
-                                    let tag = tags.get_index(arr[0].as_str()?)?;
-                                    let new_value = Math::from_value(&arr[1], tags, elements)?;
+        for outcome in outcomes_array {
+            let outcome = outcome.as_array().ok_or(ValueParseError::new("Individual rule outcome should be an array"))?;
+            let target = value_as_ivec(&outcome[0])?;
 
-                                    Some((tag, new_value))
-                                })
-                                .collect(),
-                        )),
-                        "SetTags" => Some(Self::SetTags(
-                            outcome[2]
-                                .as_array()?
-                                .into_iter()
-                                .filter_map(|change| {
-                                    let arr = change.as_array()?;
-                                    let tag = tags.get_index(arr[0].as_str()?)?;
-                                    let new_value = TagValue::from_value(&arr[1], elements);
-                                    Some((tag, new_value))
-                                })
-                                .collect(),
-                        )),
-                        "SetElement" => Some(Self::SetElement(Math::from_value(
-                            &outcome[2],
-                            tags,
-                            elements,
-                        )?)),
-                        _ => None,
-                    };
+            let outcome_type = outcome[1].as_str().ok_or(ValueParseError::new("Second item of an outcome should be a String"))?;
 
-                    Some((target, outcome?))
-                })
-                .collect(),
-        )
+            let outcome = match outcome_type {
+                "Clone" => Ok(Self::Clone(value_as_ivec(&outcome[2])?)),
+                "ChangeTags" => {
+                    let change_tags_array = outcome[2].as_array().ok_or(ValueParseError::new("Third element of ChangeTags should be an array"))?;
+
+                    let mut change_tags = Vec::new();
+
+                    for change in change_tags_array {
+                        let tag = change.as_array().ok_or(ValueParseError::new("Tag element of ChangeTags should be an array"))?;
+                        let tag_name = tag[0].as_str().ok_or(ValueParseError::new("First item of tag array should be a String"))?;
+                        let tag_index = tags.get_index(tag_name).ok_or(ValueParseError::new(format!("Tag \"{tag_name}\" doesn't exist")))?;
+                        let new_value = Math::from_value(&tag[1], tags, elements)?;
+
+                        change_tags.push((tag_index, new_value));
+                    }
+
+                    Ok(Self::ChangeTags(change_tags))
+                },
+                "SetTags" => {
+                    let set_tags_array = outcome[2].as_array().ok_or(ValueParseError::new("Third element of ChangeTags should be an array"))?;
+
+                    let mut set_tags = Vec::new();
+
+                    for new_tag in set_tags_array {
+                        let tag = new_tag.as_array().ok_or(ValueParseError::new("Tag element of ChangeTags should be an array"))?;
+                        let tag_name = tag[0].as_str().ok_or(ValueParseError::new("First item of tag array should be a String"))?;
+                        let tag_index = tags.get_index(tag_name).ok_or(ValueParseError::new(format!("Tag \"{tag_name}\" doesn't exist")))?;
+                        let new_value = TagValue::from_value(&tag[1], elements);
+
+                        set_tags.push((tag_index, new_value));
+                    }
+
+                    Ok(Self::SetTags(set_tags))
+                },
+                "SetElement" => Ok(Self::SetElement(Math::from_value(
+                    &outcome[2],
+                    tags,
+                    elements,
+                )?)),
+                _ => {
+                    Err(ValueParseError::new(format!("Invalid rule outcome type \"{outcome_type}\"")))
+                },
+            }?;
+
+            rule_outcomes.push((target, outcome))
+        }
+        Ok(rule_outcomes)
     }
 }
 
@@ -365,36 +414,47 @@ impl Math {
             Math::Value(value) => *value,
         }
     }
-    pub fn from_value(value: &Value, tags: &Tags, elements: &Elements) -> Option<Self> {
-        let sections = value.as_array().cloned().unwrap_or(vec![value.clone()]);
+    pub fn from_value(value: &Value, tags: &Tags, elements: &Elements) -> Result<Self, ValueParseError> {
+        println!("{:?}", value);
+
+        if !value.is_array() {
+            return Ok(Math::Value(TagValue::from_value(value, elements)));
+        }
+
+        let sections = value.as_array().ok_or(ValueParseError::new("Math element should be an array"))?;
 
         if sections.len() == 1 {
-            return Some(Math::Value(TagValue::from_value(&sections[0], elements)));
+            return Ok(Math::Value(TagValue::from_value(&sections[0], elements)));
         }
         if sections.len() == 2 && sections[1].is_string() {
-            return Some(Math::Tag(
+            let tag_name = sections[1].as_str().ok_or(ValueParseError::new("Second item of tag value should be a String"))?;
+            let tag_index = tags.get_index(tag_name).ok_or(ValueParseError::new(format!("Tag \"{tag_name}\" doesn't exist")))?;
+
+            return Ok(Math::Tag(
                 value_as_ivec(&sections[0])?,
-                tags.get_index(sections[1].as_str()?)?,
+                tag_index,
             ));
         }
-        match sections[1].as_str()? {
-            "+" => Some(Math::Plus(
+        let operator = sections[1].as_str().ok_or(ValueParseError::new("Second item of Math should be a String operator"))?;
+
+        match operator {
+            "+" => Ok(Math::Plus(
                 Box::new(Math::from_value(&sections[0], tags, elements)?),
                 Box::new(Math::from_value(&sections[2], tags, elements)?),
             )),
-            "-" => Some(Math::Minus(
+            "-" => Ok(Math::Minus(
                 Box::new(Math::from_value(&sections[0], tags, elements)?),
                 Box::new(Math::from_value(&sections[2], tags, elements)?),
             )),
-            "*" => Some(Math::Mul(
+            "*" => Ok(Math::Mul(
                 Box::new(Math::from_value(&sections[0], tags, elements)?),
                 Box::new(Math::from_value(&sections[2], tags, elements)?),
             )),
-            "/" => Some(Math::Div(
+            "/" => Ok(Math::Div(
                 Box::new(Math::from_value(&sections[0], tags, elements)?),
                 Box::new(Math::from_value(&sections[2], tags, elements)?),
             )),
-            _ => None,
+            _ => Err(ValueParseError::new(format!("Invalid operator \"{operator}\""))),
         }
     }
 }

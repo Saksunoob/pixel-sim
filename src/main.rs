@@ -10,13 +10,12 @@ use bevy::{
         RenderPlugin,
     },
 };
-use file_parser::{load_rules, load_tags};
+use file_parser::{load_ruleset, load_tags, load_elements};
 use rules::*;
 use ui::UIPlugin;
 use world::WorldPlugin;
 
 use crate::camera::CameraPlugin;
-use crate::file_parser::load_elements;
 
 mod camera;
 mod file_parser;
@@ -26,11 +25,9 @@ mod ui;
 mod world;
 
 fn main() {
-    let tags = load_tags(Path::new("simulation_data/tags.json")).unwrap();
-    let elements = load_elements(Path::new("simulation_data/elements.json"), &tags).unwrap();
-    let rules = load_rules(Path::new("simulation_data/rules.json"), &tags, &elements).unwrap();
-
-    let ruleset = Ruleset::new(rules);
+    let tags = load_tags(Path::new("simulation_data/tags.json"));
+    let elements = load_elements(Path::new("simulation_data/elements.json"), &tags);
+    let ruleset = load_ruleset(Path::new("simulation_data/rules.json"), &tags, &elements);
 
     App::new()
         .add_plugins((
