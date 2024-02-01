@@ -7,6 +7,7 @@ use crate::world::World;
 mod elements;
 mod inspector;
 mod rules;
+mod editor;
 
 pub struct UIPlugin;
 
@@ -159,6 +160,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
                 rules::spawn_rules_panel(info_panel, &fonts, &world, &checkbox);
                 elements::spawn_elements_panel(info_panel, &fonts, &world, &asset_server);
                 inspector::spawn_inspector_panel(info_panel, &fonts);
+                editor::spawn_editor_panel(info_panel, &fonts, &world, &asset_server);
 
                 // Icons
                 info_panel
@@ -220,6 +222,11 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, world: Res<Worl
                             icon_section,
                             "Inspector",
                             asset_server.load("inspector_icon.png"),
+                        );
+                        spawn_icon(
+                            icon_section,
+                            "Editor",
+                            asset_server.load("editor_icon.png"),
                         );
                     });
             });
